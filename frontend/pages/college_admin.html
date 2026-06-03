@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学院管理员 - 选课管理系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<div class="container-fluid">
+    <div class="row">
+        <!-- ====== 侧边栏 ====== -->
+        <nav class="col-md-2 d-md-block sidebar">
+            <div class="text-center mb-4">
+                <h5><i class="bi bi-building"></i> 选课管理系统</h5>
+                <small class="text-muted">学院管理员</small>
+                <small class="d-block text-muted" id="myCollegeName">--</small>
+            </div>
+            <ul class="nav flex-column" id="sidebarNav">
+                <li class="nav-item">
+                    <a class="nav-link active" href="#" data-page="dashboard">
+                        <i class="bi bi-speedometer2"></i> 控制台
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="teachers">
+                        <i class="bi bi-person-badge"></i> 教师管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="students">
+                        <i class="bi bi-people"></i> 学生管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="courses">
+                        <i class="bi bi-book"></i> 课程管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="selections">
+                        <i class="bi bi-check2-square"></i> 选课管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="lottery">
+                        <i class="bi bi-shuffle"></i> 抽签管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="grades">
+                        <i class="bi bi-bar-chart"></i> 成绩管理
+                    </a>
+                </li>
+                <li class="nav-item mt-4">
+                    <a class="nav-link text-danger" href="/">
+                        <i class="bi bi-box-arrow-left"></i> 退出登录
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- ====== 主内容区 ====== -->
+        <main class="col-md-10 main-content" id="mainContent">
+            <!-- 动态渲染 -->
+        </main>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../js/api.js"></script>
+<script>
+// ============================================================
+// 学院管理员 - 页面主逻辑
+// ============================================================
+
+let currentPage = 'dashboard';
+let myCollegeId = null;
+
+document.getElementById('sidebarNav').addEventListener('click', function(e) {
+    e.preventDefault();
+    const link = e.target.closest('a');
+    if (!link) return;
+    const page = link.dataset.page;
+    if (!page) return;
+    document.querySelectorAll('#sidebarNav .nav-link').forEach(el => el.classList.remove('active'));
+    link.classList.add('active');
+    currentPage = page;
+    renderPage(page);
+});
+
+function renderPage(page) {
+    const container = document.getElementById('mainContent');
+    switch (page) {
+        case 'dashboard':  renderDashboard(container); break;
+        case 'teachers':   renderTeacherList(container); break;
+        case 'students':   renderStudentList(container); break;
+        case 'courses':    renderCourseList(container); break;
+        case 'selections': renderSelectionList(container); break;
+        case 'lottery':    renderLotteryPage(container); break;
+        case 'grades':     renderGradeList(container); break;
+    }
+}
+
+async function init() {
+    // TODO: 检查登录状态 api.auth.currentUser()，获取 college_id
+    // TODO: 如果不是 college_admin 角色，跳转回 /
+    renderPage('dashboard');
+}
+init();
+
+
+// ============================================================
+// 控制台
+// ============================================================
+
+function renderDashboard(container) {
+    container.innerHTML = `
+        <h4 class="mb-4"><i class="bi bi-speedometer2"></i> 学院控制台</h4>
+        <div class="row g-3 mb-4" id="dashboardStats">
+            <!-- TODO: 动态加载本学院统计数据 -->
+        </div>
+        <div class="card">
+            <div class="card-body">
+                <h5>学院管理员功能</h5>
+                <ul>
+                    <li>管理本学院教师和学生信息</li>
+                    <li>管理本学院开设的课程</li>
+                    <li>查看本学院学生选课情况</li>
+                    <li>对选课学生进行<strong>抽签</strong>，生成中签名单</li>
+                    <li>查看本学院课程成绩</li>
+                </ul>
+            </div>
+        </div>
+    `;
+}
+
+
+// ============================================================
+// 本学院教师管理（需求3）
+// ============================================================
+
+function renderTeacherList(container) {
+    container.innerHTML = `
+        <h4 class="mb-3"><i class="bi bi-person-badge"></i> 本学院教师管理</h4>
+        <div class="card"><div class="card-body">
+            <div class="mb-3">
+                <button class="btn btn-primary"><i class="bi bi-plus-circle"></i> 新增教师</button>
+            </div>
+            <table class="table table-hover">
+                <thead class="table-light"><tr><th>ID</th><th>工号</th><th>姓名</th><th>邮箱</th><th>电话</th><th>操作</th></tr></thead>
+                <tbody id="tableBody">
+                    <tr><td colspan="6" class="text-center text-muted">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div></div>
+    `;
+    // TODO: 调用 api.collegeAdmin.listTeachers()
+    // TODO: 实现新增、编辑、删除功能
+}
+
+
+// ============================================================
+// 本学院学生管理（需求3）
+// ============================================================
+
+function renderStudentList(container) {
+    container.innerHTML = `
+        <h4 class="mb-3"><i class="bi bi-people"></i> 本学院学生管理</h4>
+        <div class="card"><div class="card-body">
+            <div class="mb-3">
+                <button class="btn btn-primary"><i class="bi bi-plus-circle"></i> 新增学生</button>
+            </div>
+            <table class="table table-hover">
+                <thead class="table-light"><tr><th>ID</th><th>学号</th><th>姓名</th><th>邮箱</th><th>电话</th><th>操作</th></tr></thead>
+                <tbody id="tableBody">
+                    <tr><td colspan="6" class="text-center text-muted">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div></div>
+    `;
+    // TODO: 调用 api.collegeAdmin.listStudents()
+    // TODO: 实现新增、编辑、删除功能
+}
+
+
+// ============================================================
+// 本学院课程管理（需求3）
+// ============================================================
+
+function renderCourseList(container) {
+    container.innerHTML = `
+        <h4 class="mb-3"><i class="bi bi-book"></i> 本学院课程管理</h4>
+        <div class="card"><div class="card-body">
+            <div class="mb-3">
+                <button class="btn btn-primary"><i class="bi bi-plus-circle"></i> 新增课程</button>
+            </div>
+            <table class="table table-hover">
+                <thead class="table-light"><tr><th>ID</th><th>课程名称</th><th>学分</th><th>教师</th><th>限选人数</th><th>已选人数</th><th>操作</th></tr></thead>
+                <tbody id="tableBody">
+                    <tr><td colspan="7" class="text-center text-muted">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div></div>
+    `;
+    // TODO: 调用 api.collegeAdmin.listCourses()
+}
+
+
+// ============================================================
+// 本学院选课管理（需求3）
+// ============================================================
+
+function renderSelectionList(container) {
+    container.innerHTML = `
+        <h4 class="mb-3"><i class="bi bi-check2-square"></i> 本学院选课管理</h4>
+        <div class="card"><div class="card-body">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr><th>ID</th><th>学生</th><th>课程</th><th>状态</th><th>选课时间</th></tr>
+                </thead>
+                <tbody id="tableBody">
+                    <tr><td colspan="5" class="text-center text-muted">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div></div>
+    `;
+    // TODO: 调用 api.collegeAdmin.listSelections()
+}
+
+
+// ============================================================
+// 抽签管理（需求4: 对选择课程的学生进行抽签，并按课程生成中签学生名单）
+// ============================================================
+
+function renderLotteryPage(container) {
+    container.innerHTML = `
+        <h4 class="mb-3"><i class="bi bi-shuffle"></i> 抽签管理</h4>
+        <div class="card">
+            <div class="card-body">
+                <h5>选择课程进行抽签</h5>
+                <p class="text-muted">系统将从待抽签的学生中随机选出中签者（不超过课程限选人数）</p>
+                <!-- 课程选择 -->
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4">
+                        <select class="form-select" id="lotteryCourseSelect">
+                            <option value="">-- 请选择课程 --</option>
+                            <!-- TODO: 加载本学院课程列表 -->
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <input class="form-control" type="number" id="lotteryMaxStudents" placeholder="限选人数（可选）">
+                    </div>
+                    <div class="col-md-auto">
+                        <button class="btn btn-warning" id="btnLottery">
+                            <i class="bi bi-shuffle"></i> 开始抽签
+                        </button>
+                    </div>
+                </div>
+                <!-- 中签结果 -->
+                <div id="lotteryResult" class="mt-3">
+                    <h6>中签学生名单</h6>
+                    <div class="mb-2">
+                        <button class="btn btn-outline-success btn-sm" id="btnExportLottery">
+                            <i class="bi bi-download"></i> 导出中签名单
+                        </button>
+                    </div>
+                    <table class="table table-sm" id="lotteryResultTable">
+                        <thead class="table-light"><tr><th>学号</th><th>姓名</th><th>邮箱</th><th>状态</th></tr></thead>
+                        <tbody id="lotteryResultBody">
+                            <tr><td colspan="4" class="text-center text-muted">请先选择课程并点击"开始抽签"</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // TODO: 加载本学院课程到下拉框
+    // TODO: 抽签按钮事件：
+    //   1. 获取选中的 course_id 和 max_students
+    //   2. 调用 api.collegeAdmin.lottery(courseId, { max_students })
+    //   3. 显示结果（中签/未中签）
+    // TODO: 导出按钮事件：调用 api.collegeAdmin.exportLotteryResult(courseId)
+}
+
+
+// ============================================================
+// 本学院成绩管理（需求3）
+// ============================================================
+
+function renderGradeList(container) {
+    container.innerHTML = `
+        <h4 class="mb-3"><i class="bi bi-bar-chart"></i> 本学院成绩管理</h4>
+        <div class="card"><div class="card-body">
+            <div class="mb-3">
+                <select class="form-select" style="width:200px;display:inline;">
+                    <option value="">全部课程</option>
+                    <!-- TODO: 加载本学院课程 -->
+                </select>
+                <button class="btn btn-outline-secondary ms-2"><i class="bi bi-search"></i> 查询</button>
+            </div>
+            <table class="table table-hover">
+                <thead class="table-light"><tr><th>ID</th><th>学生</th><th>课程</th><th>分数</th><th>绩点</th><th>操作</th></tr></thead>
+                <tbody id="tableBody">
+                    <tr><td colspan="6" class="text-center text-muted">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div></div>
+    `;
+    // TODO: 调用 api.collegeAdmin.listGrades()
+}
+</script>
+</body>
+</html>

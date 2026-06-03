@@ -1,0 +1,82 @@
+/* ============================================================
+   选课系统 - 全局样式
+   ============================================================ */
+
+/* 登录页面 */
+.login-container {
+    max-width: 420px;
+    margin: 100px auto;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+}
+
+/* 侧边栏 */
+.sidebar {
+    min-height: 100vh;
+    background: #2c3e50;
+    color: #ecf0f1;
+    padding-top: 20px;
+}
+.sidebar .nav-link {
+    color: #bdc3c7;
+    padding: 12px 20px;
+    border-radius: 0;
+}
+.sidebar .nav-link:hover,
+.sidebar .nav-link.active {
+    color: #fff;
+    background: #34495e;
+}
+.sidebar .nav-link i {
+    width: 20px;
+    margin-right: 8px;
+}
+
+/* 主内容区 */
+.main-content {
+    padding: 24px;
+    background: #f5f6fa;
+    min-height: 100vh;
+}
+
+/* 卡片 */
+.card-stat {
+    border-left: 4px solid #3498db;
+}
+
+/* 消息列表 */
+.message-item {
+    border-bottom: 1px solid #eee;
+    padding: 12px 0;
+}
+.message-item.unread {
+    background: #f0f7ff;
+}
+.message-item:hover {
+    background: #f9f9f9;
+}
+
+/* 成绩统计表 */
+.stat-table th,
+.stat-table td {
+    text-align: center;
+    vertical-align: middle;
+}
+
+/* 上传课件区域 */
+.upload-zone {
+    border: 2px dashed #ddd;
+    border-radius: 6px;
+    padding: 30px;
+    text-align: center;
+    cursor: pointer;
+}
+.upload-zone:hover {
+    border-color: #3498db;
+}
+
+/* Tab内容 */
+.tab-content {
+    padding-top: 16px;
+}

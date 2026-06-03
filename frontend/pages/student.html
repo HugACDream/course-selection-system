@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学生 - 选课管理系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<div class="container-fluid">
+    <div class="row">
+        <!-- ====== 侧边栏 ====== -->
+        <nav class="col-md-2 d-md-block sidebar">
+            <div class="text-center mb-4">
+                <h5><i class="bi bi-building"></i> 选课管理系统</h5>
+                <small class="text-muted">学生</small>
+                <small class="d-block text-muted" id="myName">--</small>
+            </div>
+            <ul class="nav flex-column" id="sidebarNav">
+                <li class="nav-item">
+                    <a class="nav-link active" href="#" data-page="dashboard">
+                        <i class="bi bi-speedometer2"></i> 控制台
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="profile">
+                        <i class="bi bi-person"></i> 个人信息
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="course-selection">
+                        <i class="bi bi-plus-circle"></i> 选课
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="my-selections">
+                        <i class="bi bi-check2-square"></i> 已选课程
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="my-grades">
+                        <i class="bi bi-bar-chart"></i> 成绩查询
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="messages">
+                        <i class="bi bi-envelope"></i> 消息
+                        <span class="badge bg-danger ms-1 d-none" id="unreadBadge">0</span>
+                    </a>
+                </li>
+                <li class="nav-item mt-4">
+                    <a class="nav-link text-danger" href="/">
+                        <i class="bi bi-box-arrow-left"></i> 退出登录
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- ====== 主内容区 ====== -->
+        <main class="col-md-10 main-content" id="mainContent">
+            <!-- 动态渲染 -->
+        </main>
+    </div>
+</div>
+
+<!-- ====== 课程详情模态框 ====== -->
+<div class="modal fade" id="courseDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="courseDetailTitle">课程详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="courseDetailBody">
+                <!-- 动态填充 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" id="btnSelectCourse">
+                    <i class="bi bi-plus-circle"></i> 选择此课程
+                </button>
+                <button type="button" class="btn btn-success d-none" id="btnDownloadMaterial">
+                    <i class="bi bi-download"></i> 下载课件
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../js/api.js"></script>
+<script>
+// ============================================================
+// 学生 - 页面主逻辑
+// ============================================================
+
+let currentPage = 'dashboard';
+let myStudentId = null;
+let currentDetailCourseId = null;
+
+document.getElementById('sidebarNav').addEventListener('click', function(e) {
+    e.preventDefault();
+    const link = e.target.closest('a');
+    if (!link) return;
+    const page = link.dataset.page;
+    if (!page) return;
+    document.querySelectorAll('#sidebarNav .nav-link').forEach(el => el.classList.remove('active'));
+    link.classList.add('active');
+    currentPage = page;
+    renderPage(page);
+});
+
+function renderPage(page) {
+    const container = document.getElementById('mainContent');
+    switch (page) {
+        case 'dashboard':       renderDashboard(container); break;
+        case 'profile':         renderProfile(container); break;
+        case 'course-selection':renderCourseSelection(container); break;
+        case 'my-selections':   renderMySelections(container); break;
+        case 'my-grades':       renderMyGrades(container); break;
+        case 'messages':        renderMessages(container); break;
+    }
+}
+
+async function init() {
+    // TODO: 检查登录状态 api.auth.currentUser()
+    // TODO: 如果不是 student 角色，跳转回 /
+    renderPage('dashboard');
+}
+init();
+
+
+// ============================================================
+// 控制台
+// ============================================================
+
+function renderDashboard(container) {
+    container.innerHTML = `
+        <h4 class="mb-4"><i class="bi bi-speedometer2"></i> 学生控制台</h4>
+        <div class="card">
+            <div class="card-body">
+                <h5>学生功能</h5>
+                <ul>
+                    <li>浏览可选课程，选择自己的选修课程</li>
+                    <li>查看已选课程及选课结果（中签状态）</li>
+                    <li><strong>注意：</strong>选课时系统将自动检查先修课程是否完成</li>
+                    <li>查询成绩、下载课件</li>
+                    <li>与任课教师发送和回复消息</li>
+                </ul>
+            </div>
+        </div>
+    `;
+}
+
+
+// ============================================================
+// 个人信息（需求8: 对自己基本信息的查询）
+// ============================================================
+
+function renderProfile(container) {
+    container.innerHTML = `
+        <h4 class="mb-3"><i class="bi bi-person"></i> 个人信息</h4>
+        <div class="card"><div class="card-body">
+            <div id="profileInfo">
+                <!-- TODO: 加载个人信息 -->
+                <p class="text-muted">加载中...</p>
+            </div>
+            <button class="btn btn-outline-primary btn-sm mt-2" id="btnEditProfile">
+                <i class="bi bi-pencil"></i> 修改信息
+            </button>
+        </div></div>
+    `;
+    // TODO: 调用 api.student.getProfile() 加载个人信息
+    // TODO: 修改按钮：弹出编辑表单（邮箱、电话等），调用 api.student.updateProfile(data)
+}
+
+
+// ============================================================
+// 选课页面（需求8: 指定自己的选修课程; 需求10: 先修课程检查; 需求11: 浏览课程信息）
+// ============================================================
+
+function renderCourseSelection(container) {
+    container.innerHTML = `
+        <h4 class="mb-3"><i class="bi bi-plus-circle"></i> 选课</h4>
+        <div class="card"><div class="card-body">
+            <!-- 搜索和筛选 -->
+            <div class="row g-2 mb-3">
+                <div class="col-md-3">
+                    <input class="form-control" id="courseSearchInput" placeholder="搜索课程名称">
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" id="collegeFilter">
+                        <option value="">全部学院</option>
+                        <!-- TODO: 动态加载学院列表 -->
+                    </select>
+                </div>
+                <div class="col-md-auto">
+                    <button class="btn btn-outline-secondary" id="btnSearchCourse">
+                        <i class="bi bi-search"></i> 查询
+                    </button>
+                </div>
+            </div>
+            <!-- 课程卡片列表 -->
+            <div class="row g-3" id="courseCardList">
+                <div class="col-12 text-center text-muted">加载中...</div>
+            </div>
+        </div></div>
+    `;
+
+    // TODO: 调用 api.student.listCourses(page, page_size, keyword, college_id) 加载课程列表
+    // TODO: 以卡片形式展示每门课程：课程名、学分、教师、学院、已选人数/限选人数、先修课程
+    // TODO: 点击卡片 → 弹出课程详情模态框（含课程介绍syllabus、先修课程、课件下载）
+    // TODO: 详情模态框中"选择此课程"按钮：
+    //       1. 调用 api.student.selectCourse(courseId)
+    //       2. 如果返回错误（先修课程未通过），弹出提示："您没有学习该课程的先修课程，不能进行选课！"
+    //       3. 如果成功，提示"选课成功，请等待抽签结果"
+}
+
+// 浏览课程详情（需求11: 浏览课程信息）
+function showCourseDetail(courseId) {
+    // TODO: 调用 api.student.getCourseDetail(courseId)
+    // TODO: 显示课程完整信息：名称、介绍(syllabus)、学分、教师、先修课程列表、课件链接
+    // TODO: 如果学生已选中该课程，显示课件下载按钮
+    // TODO: 模态框底部按钮处理选课或下载课件
+}
+
+
+// ============================================================
+// 已选课程（需求8: 查询已选课程; 需求9: 查询自己选课结果）
+// ============================================================
+
+function renderMySelections(container) {
+    container.innerHTML = `
+        <h4 class="mb-3"><i class="bi bi-check2-square"></i> 已选课程</h4>
+        <div class="card"><div class="card-body">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>课程名称</th><th>学分</th><th>教师</th>
+                        <th>状态</th><th>选课时间</th><th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="mySelectionsBody">
+                    <tr><td colspan="6" class="text-center text-muted">加载中...</td></tr>
+                </tbody>
+            </table>
+            <div class="mt-2">
+                <small class="text-muted">
+                    状态说明：<span class="badge bg-warning">pending</span> 待抽签 &nbsp;
+                    <span class="badge bg-success">confirmed</span> 已中签 &nbsp;
+                    <span class="badge bg-secondary">cancelled</span> 已取消
+                </small>
+            </div>
+        </div></div>
+    `;
+
+    // TODO: 调用 api.student.listMySelections()
+    // TODO: 渲染选课列表，按状态显示不同标签颜色
+    // TODO: pending状态的课程可"取消选课" → 调用 api.student.cancelSelection(selectionId)
+}
+
+
+// ============================================================
+// 成绩查询（需求11: 查询成绩）
+// ============================================================
+
+function renderMyGrades(container) {
+    container.innerHTML = `
+        <h4 class="mb-3"><i class="bi bi-bar-chart"></i> 成绩查询</h4>
+        <div class="card"><div class="card-body">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr><th>课程名称</th><th>学分</th><th>分数</th><th>绩点</th><th>状态</th></tr>
+                </thead>
+                <tbody id="myGradesBody">
+                    <tr><td colspan="5" class="text-center text-muted">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div></div>
+    `;
+
+    // TODO: 调用 api.student.listMyGrades()
+    // TODO: 渲染成绩表格，未录入成绩的显示"--"
+}
+
+
+// ============================================================
+// 消息（需求12: 给任课教师发送信息和回复任课教师的留言）
+// ============================================================
+
+function renderMessages(container) {
+    container.innerHTML = `
+        <h4 class="mb-3"><i class="bi bi-envelope"></i> 消息</h4>
+        <div class="card"><div class="card-body">
+            <ul class="nav nav-tabs" id="messageTabs">
+                <li class="nav-item">
+                    <a class="nav-link active" data-bs-toggle="tab" href="#msgInbox">收件箱</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#msgOutbox">发件箱</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#msgSend">发送消息</a>
+                </li>
+            </ul>
+            <div class="tab-content mt-3">
+                <!-- 收件箱 -->
+                <div class="tab-pane fade show active" id="msgInbox">
+                    <div id="inboxList">
+                        <p class="text-muted">加载中...</p>
+                    </div>
+                </div>
+                <!-- 发件箱 -->
+                <div class="tab-pane fade" id="msgOutbox">
+                    <div id="outboxList">
+                        <p class="text-muted">加载中...</p>
+                    </div>
+                </div>
+                <!-- 发送消息 / 回复 -->
+                <div class="tab-pane fade" id="msgSend">
+                    <form id="sendMessageForm">
+                        <div class="mb-3">
+                            <label class="form-label">选择课程</label>
+                            <select class="form-select" id="msgCourseSelect">
+                                <option value="">-- 选择已中签的课程 --</option>
+                                <!-- TODO: 加载已中签的课程 -->
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">消息内容</label>
+                            <textarea class="form-control" id="msgContent" rows="4" required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-send"></i> 发送给任课教师
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div></div>
+    `;
+
+    // TODO: 收件箱 - 调用 api.student.listReceivedMessages()
+    // TODO:   每条消息显示：发送者(教师)姓名、课程、内容、时间
+    // TODO:   提供"回复"按钮 → 调用 api.student.replyMessage(messageId, content)
+    // TODO:   提供"标记已读" → 调用 api.student.markRead(messageId)
+    // TODO: 发件箱 - 调用 api.student.listSentMessages()
+    // TODO: 发送消息 - 表单提交：
+    //       1. 获取选中的 course_id（教师的课程）
+    //       2. 获取消息内容
+    //       3. 调用 api.student.sendMessage({ receiver_id: teacherId, course_id, content })
+}
+</script>
+</body>
+</html>

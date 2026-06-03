@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>教师 - 选课管理系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="../css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<div class="container-fluid">
+    <div class="row">
+        <!-- ====== 侧边栏 ====== -->
+        <nav class="col-md-2 d-md-block sidebar">
+            <div class="text-center mb-4">
+                <h5><i class="bi bi-building"></i> 选课管理系统</h5>
+                <small class="text-muted">教师</small>
+                <small class="d-block text-muted" id="myName">--</small>
+            </div>
+            <ul class="nav flex-column" id="sidebarNav">
+                <li class="nav-item">
+                    <a class="nav-link active" href="#" data-page="dashboard">
+                        <i class="bi bi-speedometer2"></i> 控制台
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="my-courses">
+                        <i class="bi bi-book"></i> 我的课程
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="confirmed-students">
+                        <i class="bi bi-person-check"></i> 中签学生
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="grades">
+                        <i class="bi bi-pencil-square"></i> 成绩录入
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="grade-stats">
+                        <i class="bi bi-bar-chart"></i> 成绩统计
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="messages">
+                        <i class="bi bi-envelope"></i> 消息
+                        <span class="badge bg-danger ms-1 d-none" id="unreadBadge">0</span>
+                    </a>
+                </li>
+                <li class="nav-item mt-4">
+                    <a class="nav-link text-danger" href="/">
+                        <i class="bi bi-box-arrow-left"></i> 退出登录
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- ====== 主内容区 ====== -->
+        <main class="col-md-10 main-content" id="mainContent">
+            <!-- 动态渲染 -->
+        </main>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../js/api.js"></script>
+<script>
+// ============================================================
+// 教师 - 页面主逻辑
+// ============================================================
+
+let currentPage = 'dashboard';
+let myTeacherId = null;
+
+document.getElementById('sidebarNav').addEventListener('click', function(e) {
+    e.preventDefault();
+    const link = e.target.closest('a');
+    if (!link) return;
+    const page = link.dataset.page;
+    if (!page) return;
+    document.querySelectorAll('#sidebarNav .nav-link').forEach(el => el.classList.remove('active'));
+    link.classList.add('active');
+    currentPage = page;
+    renderPage(page);
+});
+
+function renderPage(page) {
+    const container = document.getElementById('mainContent');
+    switch (page) {
+        case 'dashboard':          renderDashboard(container); break;
+        case 'my-courses':         renderMyCourses(container); break;
+        case 'confirmed-students': renderConfirmedStudents(container); break;
+        case 'grades':             renderGradeEntry(container); break;
+        case 'grade-stats':        renderGradeStats(container); break;
+        case 'messages':           renderMessages(container); break;
+    }
+}
+
+async function init() {
+    // TODO: 检查登录状态，获取教师信息
+    // TODO: 加载未读消息数
+    renderPage('dashboard');
+}
+init();
+
+
+// ============================================================
+// 控制台
+// ============================================================
+
+function renderDashboard(container) {
+    container.innerHTML = `
+        <h4 class="mb-4"><i class="bi bi-speedometer2"></i> 教师控制台</h4>
+        <div class="card">
+            <div class="card-body">
+                <h5>教师功能</h5>
+                <ul>
+                    <li>管理课程信息：输入课程介绍、上传课件、设置先修课程</li>
+                    <li>查看中签学生名单</li>
+                    <li>录入学生成绩，生成成绩统计表</li>
+                    <li>与选课学生消息互动</li>
+                </ul>
+            </div>
+        </div>
+    `;
+}
+
+
+// ============================================================
+// 我的课程（需求5: 输入课程介绍、上传课件、发布先修课程、更新和修改课程信息）
+// ============================================================
+
+function renderMyCourses(container) {
+    container.innerHTML = `
+        <h4 class="mb-3"><i class="bi bi-book"></i> 我的课程</h4>
+        <div class="row" id="courseCards">
+            <div class="col-12 text-center text-muted">加载中...</div>
+        </div>
+    `;
+    // TODO: 调用 api.teacher.listMyCourses() 获取课程列表
+    // TODO: 以卡片形式展示每门课，包含：
+    //       - 课程名称、学分、选课人数
+    //       - 编辑按钮 → 弹出表单可修改课程介绍(syllabus)、先修课程(prerequisites)、限选人数等
+    //       - 上传课件按钮 → 弹出文件选择框，调用 api.teacher.uploadMaterial(courseId, formData)
+}
+
+// 课程编辑表单（由renderMyCourses触发）
+function showEditCourseForm(course) {
+    // TODO: 弹出模态框，包含：
+    //       - 课程名称（不可改）
+    //       - 课程介绍 textarea
+    //       - 先修课程 多选下拉框
+    //       - 限选人数
+    //       - 上传课件（独立操作）
+    // TODO: 保存时调用 api.teacher.updateCourse(courseId, data)
+}
+
+function uploadMaterial(courseId) {
+    // TODO: 创建文件选择input，选择后调用 api.teacher.uploadMaterial(courseId, formData)
+}
+
+
+// ============================================================
+// 中签学生（需求6: 查询选修自己课程的所有中签学生名单）
+// ============================================================
+
+function renderConfirmedStudents(container) {
+    container.innerHTML = `
+        <h4 class="mb-3"><i class="bi bi-person-check"></i> 中签学生查询</h4>
+        <div class="card"><div class="card-body">
+            <div class="mb-3">
+                <label class="form-label">选择课程：</label>
+                <select class="form-select" id="courseSelectForStudents" style="width:300px;">
+                    <option value="">-- 请选择课程 --</option>
+                    <!-- TODO: 动态加载我的课程 -->
+                </select>
+            </div>
+            <table class="table table-hover" id="confirmedStudentsTable">
+                <thead class="table-light"><tr><th>学号</th><th>姓名</th><th>邮箱</th><th>电话</th></tr></thead>
+                <tbody id="confirmedStudentsBody">
+                    <tr><td colspan="4" class="text-center text-muted">请先选择课程</td></tr>
+                </tbody>
+            </table>
+        </div></div>
+    `;
+
+    // TODO: 监听课程下拉框变化事件
+    // TODO: 选择课程后，调用 api.teacher.getConfirmedStudents(courseId)
+    // TODO: 渲染中签学生列表
+}
+
+
+// ============================================================
+// 成绩录入（需求6: 录入课程成绩）
+// ============================================================
+
+function renderGradeEntry(container) {
+    container.innerHTML = `
+        <h4 class="mb-3"><i class="bi bi-pencil-square"></i> 成绩录入</h4>
+        <div class="card"><div class="card-body">
+            <div class="mb-3">
+                <label class="form-label">选择课程：</label>
+                <select class="form-select" id="courseSelectForGrades" style="width:300px;">
+                    <option value="">-- 请选择课程 --</option>
+                    <!-- TODO: 动态加载我的课程 -->
+                </select>
+            </div>
+            <div id="gradeEntryForm">
+                <!-- TODO: 选择课程后加载中签学生列表及其成绩 -->
+                <table class="table" id="gradeEntryTable">
+                    <thead class="table-light"><tr><th>学号</th><th>姓名</th><th>分数</th></tr></thead>
+                    <tbody id="gradeEntryBody">
+                        <tr><td colspan="3" class="text-center text-muted">请先选择课程</td></tr>
+                    </tbody>
+                </table>
+                <button class="btn btn-primary" id="btnSaveGrades">
+                    <i class="bi bi-check-lg"></i> 保存成绩
+                </button>
+            </div>
+        </div></div>
+    `;
+
+    // TODO: 选择课程后：
+    //   1. 调用 api.teacher.getConfirmedStudents(courseId) 获取中签学生
+    //   2. 调用 api.teacher.listCourseGrades(courseId) 获取已有成绩
+    //   3. 渲染表格：每行一个学生，分数为输入框（已有成绩则预填）
+    // TODO: 保存按钮：
+    //   1. 收集所有行的 student_id 和 score
+    //   2. 调用 api.teacher.saveGrades(courseId, { grades: [...] })
+}
+
+
+// ============================================================
+// 成绩统计（需求6: 生成成绩统计表 - 分数段人数、及格率等）
+// ============================================================
+
+let gradeChart = null;
+
+function renderGradeStats(container) {
+    container.innerHTML = `
+        <h4 class="mb-3"><i class="bi bi-bar-chart"></i> 成绩统计</h4>
+        <div class="card"><div class="card-body">
+            <div class="mb-3">
+                <label class="form-label">选择课程：</label>
+                <select class="form-select" id="courseSelectForStats" style="width:300px;">
+                    <option value="">-- 请选择课程 --</option>
+                    <!-- TODO: 动态加载我的课程 -->
+                </select>
+            </div>
+            <div id="gradeStatsResult">
+                <!-- 统计表格 -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <table class="table table-bordered stat-table" id="gradeStatsTable">
+                            <thead class="table-light">
+                                <tr><th>分数段</th><th>人数</th><th>占比</th></tr>
+                            </thead>
+                            <tbody id="gradeStatsBody">
+                                <tr><td colspan="3" class="text-center text-muted">请先选择课程</td></tr>
+                            </tbody>
+                            <tfoot id="gradeStatsFoot"></tfoot>
+                        </table>
+                        <div id="statsSummary" class="mt-2">
+                            <!-- TODO: 显示 平均分、最高分、最低分、及格率 -->
+                        </div>
+                    </div>
+                    <!-- 成绩分布柱状图 -->
+                    <div class="col-md-6">
+                        <div style="height:350px;">
+                            <canvas id="gradeDistChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div></div>
+    `;
+
+    // TODO: 选择课程后调用 api.teacher.getGradeStatistics(courseId)
+    // TODO: 渲染统计表格（每个分数段人数和占比）
+    // TODO: 渲染汇总信息（平均分、最高分、最低分、及格率）
+    // TODO: 使用 Chart.js 渲染成绩分布柱状图
+}
+
+
+// ============================================================
+// 消息（需求7: 对选修自己课程学生发送消息留言）
+// ============================================================
+
+function renderMessages(container) {
+    container.innerHTML = `
+        <h4 class="mb-3"><i class="bi bi-envelope"></i> 消息</h4>
+        <div class="card"><div class="card-body">
+            <!-- Tab: 收件箱 / 发件箱 / 发送消息 -->
+            <ul class="nav nav-tabs" id="messageTabs">
+                <li class="nav-item">
+                    <a class="nav-link active" data-bs-toggle="tab" href="#msgInbox">收件箱</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#msgOutbox">发件箱</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#msgSend">发送消息</a>
+                </li>
+            </ul>
+            <div class="tab-content mt-3">
+                <!-- 收件箱 -->
+                <div class="tab-pane fade show active" id="msgInbox">
+                    <div id="inboxList">
+                        <!-- TODO: 加载收到的消息列表 -->
+                        <p class="text-muted">加载中...</p>
+                    </div>
+                </div>
+                <!-- 发件箱 -->
+                <div class="tab-pane fade" id="msgOutbox">
+                    <div id="outboxList">
+                        <p class="text-muted">加载中...</p>
+                    </div>
+                </div>
+                <!-- 发送消息 -->
+                <div class="tab-pane fade" id="msgSend">
+                    <form id="sendMessageForm">
+                        <div class="mb-3">
+                            <label class="form-label">选择课程（筛选学生）</label>
+                            <select class="form-select" id="msgCourseSelect">
+                                <option value="">-- 选择课程 --</option>
+                                <!-- TODO: 加载我的课程 -->
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">接收学生</label>
+                            <select class="form-select" id="msgReceiverSelect">
+                                <option value="">-- 选择学生 --</option>
+                                <!-- TODO: 根据课程加载中签学生 -->
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">消息内容</label>
+                            <textarea class="form-control" id="msgContent" rows="4" required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-send"></i> 发送
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div></div>
+    `;
+
+    // TODO: 收件箱 - 调用 api.teacher.listReceivedMessages()
+    // TODO: 发件箱 - 调用 api.teacher.listSentMessages()
+    // TODO: 发送消息 - 表单提交时调用 api.teacher.sendMessage({ receiver_id, course_id, content })
+}
+</script>
+</body>
+</html>
