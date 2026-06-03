@@ -55,26 +55,31 @@ document.getElementById('loginForm').addEventListener('submit', async function(e
     e.preventDefault();
     const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value.trim();
-    const role = document.getElementById('role').value;
     const errorDiv = document.getElementById('loginError');
+
+    if (!username || !password) {
+        errorDiv.classList.remove('d-none');
+        errorDiv.textContent = '请输入用户名和密码';
+        return;
+    }
 
     const result = await api.auth.login(username, password);
 
     if (result.success) {
-        const role = result.user.role;
+        const userRole = result.user.role;
         const pageMap = {
             'admin': '/pages/admin.html',
             'college_admin': '/pages/college_admin.html',
             'teacher': '/pages/teacher.html',
             'student': '/pages/student.html',
         };
-        window.location.href = pageMap[role] || '/';
+        window.location.href = pageMap[userRole] || '/';
     } else {
         errorDiv.classList.remove('d-none');
         errorDiv.textContent = result.message || '登录失败';
     }
-
 });
+
 </script>
 
 </body>

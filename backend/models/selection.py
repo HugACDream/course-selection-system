@@ -1,7 +1,8 @@
 """
 选课记录模型
 """
-
+import random
+from database import get_db
 
 class CourseSelection:
     """选课记录类，对应 course_selections 表"""
@@ -35,62 +36,121 @@ class CourseSelection:
 
     @staticmethod
     def find_by_id(selection_id):
-        """根据ID查找选课记录"""
-        # TODO: SELECT * FROM course_selections WHERE id = ?
-        pass
+        db = get_db()
+        row = db.execute('SELECT * FROM course_selections WHERE id = ?', (selection_id,)).fetchone()
+        if row:
+            return CourseSelection(row)
+        return None
+
 
     @staticmethod
     def find_by_student(student_id):
-        """查询某学生的所有选课记录"""
-        # TODO: SELECT cs.*, c.name as course_name, c.credits FROM course_selections cs
-        #       JOIN courses c ON cs.course_id = c.id WHERE cs.student_id = ?
-        pass
+        db = get_db()
+        rows = db.execute(
+            'SELECT cs.*, c.name as course_name, c.credits '
+            'FROM course_selections cs '
+            'JOIN courses c ON cs.course_id = c.id '
+            'WHERE cs.student_id = ?',
+            (student_id,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
 
     @staticmethod
     def find_by_course(course_id, status=None):
-        """查询某课程的所有选课学生"""
-        # TODO: SELECT cs.*, u.name as student_name FROM course_selections cs
-        #       JOIN users u ON cs.student_id = u.id WHERE cs.course_id = ? AND status = ?
-        pass
+        db = get_db()
+        if status:
+            rows = db.execute(
+                'SELECT cs.*, u.name as student_name FROM course_selections cs '
+                'JOIN users u ON cs.student_id = u.id '
+                'WHERE cs.course_id = ? AND cs.status = ?',
+                (course_id, status)
+            ).fetchall()
+        else:
+            rows = db.execute(
+                'SELECT cs.*, u.name as student_name FROM course_selections cs '
+                'JOIN users u ON cs.student_id = u.id '
+                'WHERE cs.course_id = ?',
+                (course_id,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
 
     @staticmethod
     def find_confirmed_by_course(course_id):
-        """查询某课程中签学生名单"""
-        # TODO: SELECT cs.*, u.name, u.email, u.phone FROM course_selections cs
-        #       JOIN users u ON cs.student_id = u.id WHERE cs.course_id = ? AND cs.status = 'confirmed'
-        pass
+        db = get_db()
+        rows = db.execute(
+            'SELECT cs.*, u.name, u.username, u.email, u.phone '
+            'FROM course_selections cs '
+            'JOIN users u ON cs.student_id = u.id '
+            'WHERE cs.course_id = ? AND cs.status = ?',
+            (course_id, 'confirmed')
+        ).fetchall()
+        return [dict(r) for r in rows]
+
 
     @staticmethod
     def check_exists(student_id, course_id):
-        """检查学生是否已经选择了某课程"""
-        # TODO: SELECT * FROM course_selections WHERE student_id = ? AND course_id = ?
-        pass
+        db = get_db()
+        row = db.execute(
+            'SELECT * FROM course_selections WHERE student_id = ? AND course_id = ? AND status != ?',
+            (student_id, course_id, 'cancelled')
+        ).fetchone()
+        return row is not None
+
 
     def save(self):
-        """新增选课记录"""
-        # TODO: INSERT INTO course_selections (student_id, course_id, status) VALUES (?, ?, ?)
-        pass
+        db = get_db()
+        cursor = db.execute(
+            'INSERT INTO course_selections (student_id, course_id, status) VALUES (?, ?, ?)',
+            (self.student_id, self.course_id, self.status)
+        )
+        db.commit()
+        self.id = cursor.lastrowid
+        return self
+
 
     def update_status(self, status):
-        """更新选课状态（用于抽签确认）"""
-        # TODO: UPDATE course_selections SET status = ? WHERE id = ?
-        pass
+        db = get_db()
+        db.execute(
+            'UPDATE course_selections SET status = ? WHERE id = ?',
+            (status, self.id)
+        )
+        db.commit()
+        self.status = status
+
 
     def delete(self):
-        """删除选课记录（取消选课）"""
-        # TODO: DELETE FROM course_selections WHERE id = ?
-        pass
+        db = get_db()
+        db.execute('DELETE FROM course_selections WHERE id = ?', (self.id,))
+        db.commit()
 
     # ---- 抽签相关 ----
 
     @staticmethod
     def lottery_for_course(course_id, max_students):
-        """
-        对某课程进行抽签，随机选出中签学生
-        返回中签学生名单
-        """
-        # TODO: 1. 查询该课程所有 pending 状态的选课记录
-        # TODO: 2. 如果选课人数 <= max_students，全部中签
-        # TODO: 3. 否则随机抽取 max_students 人，其余标记为 cancelled
-        # TODO: 4. 返回中签学生列表
-        pass
+        db = get_db()
+        rows = db.execute(
+            'SELECT * FROM course_selections WHERE course_id = ? AND status = ?',
+            (course_id, 'pending')
+        ).fetchall()
+
+        selections = [CourseSelection(r) for r in rows]
+
+        if len(selections) <= max_students:
+            # 全部中签
+            for s in selections:
+                s.update_status('confirmed')
+            return [s.to_dict() for s in selections]
+
+        # 随机抽取
+        confirmed = random.sample(selections, max_students)
+        confirmed_ids = {s.id for s in confirmed}
+
+        for s in selections:
+            if s.id in confirmed_ids:
+                s.update_status('confirmed')
+            else:
+                s.update_status('cancelled')
+
+        return [s.to_dict() for s in confirmed]

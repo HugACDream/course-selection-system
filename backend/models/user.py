@@ -3,8 +3,6 @@
 """
 from database import get_db
 
-from werkzeug.security import generate_password_hash, check_password_hash
-
 class User:
     """用户基类，对应 users 表"""
 
@@ -41,12 +39,11 @@ class User:
             'phone': self.phone,
         }
 
-    # ---- CRUD 方法（TODO标记由后续Python实现） ----
 
     @staticmethod
-    def find_by_id(id):
+    def find_by_id(user_id):
         db = get_db()
-        row = db.execute('SELECT * FROM users WHERE id  = ?', (id,)).fetchone()
+        row = db.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
         if row:
             return User(row)
         return None
@@ -62,25 +59,63 @@ class User:
 
     @staticmethod
     def find_all(role=None, college_id=None, page=1, page_size=20):
-        """分页查询用户列表，可按角色和学院筛选"""
-        # TODO: SELECT * FROM users WHERE role=? AND college_id=? LIMIT ? OFFSET ?
-        # TODO: 返回 (用户列表, 总数)
-        pass
+        db = get_db()
+        conditions = []
+        params = []
+
+        if role:
+            conditions.append('role = ?')
+            params.append(role)
+        if college_id is not None:
+            conditions.append('college_id = ?')
+            params.append(college_id)
+
+        where_clause = ' WHERE ' + ' AND '.join(conditions) if conditions else ''
+
+        # 查总数
+        count_row = db.execute(
+            f'SELECT COUNT(*) as cnt FROM users{where_clause}', params
+        ).fetchone()
+        total = count_row['cnt']
+
+        # 查分页数据
+        offset = (page - 1) * page_size
+        rows = db.execute(
+            f'SELECT * FROM users{where_clause} LIMIT ? OFFSET ?',
+            params + [page_size, offset]
+        ).fetchall()
+
+        users = [User(r) for r in rows]
+        return users, total
+
 
     def save(self):
-        """新增用户"""
-        # TODO: INSERT INTO users (username, password, role, name, college_id, email, phone) VALUES (?, ?, ?, ?, ?, ?, ?)
-        pass
+        db = get_db()
+        cursor = db.execute(
+            'INSERT INTO users (username, password, role, name, college_id, email, phone) '
+            'VALUES (?, ?, ?, ?, ?, ?, ?)',
+            (self.username, self.password, self.role, self.name,
+            self.college_id, self.email, self.phone)
+        )
+        db.commit()
+        self.id = cursor.lastrowid
+        return self
+
 
     def update(self):
-        """更新用户信息"""
-        # TODO: UPDATE users SET name=?, college_id=?, email=?, phone=? WHERE id=?
-        pass
+        db = get_db()
+        db.execute(
+            'UPDATE users SET name=?, college_id=?, email=?, phone=? WHERE id=?',
+            (self.name, self.college_id, self.email, self.phone, self.id)
+        )
+        db.commit()
+
 
     def delete(self):
-        """删除用户"""
-        # TODO: DELETE FROM users WHERE id = ?
-        pass
+        db = get_db()
+        db.execute('DELETE FROM users WHERE id = ?', (self.id,))
+        db.commit()
+
 
     def check_password(self, password):
         return self.password == password

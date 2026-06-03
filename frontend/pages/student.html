@@ -57,6 +57,9 @@
                     </a>
                 </li>
             </ul>
+            <div class="mt-auto px-3 py-2">
+                <small>当前用户: <span id="currentUserName">--</span></small>
+            </div>
         </nav>
 
         <!-- ====== 主内容区 ====== -->
@@ -74,17 +77,28 @@
                 <h5 class="modal-title" id="courseDetailTitle">课程详情</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body" id="courseDetailBody">
-                <!-- 动态填充 -->
-            </div>
+            <div class="modal-body" id="courseDetailBody"></div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-                <button type="button" class="btn btn-primary" id="btnSelectCourse">
-                    <i class="bi bi-plus-circle"></i> 选择此课程
-                </button>
-                <button type="button" class="btn btn-success d-none" id="btnDownloadMaterial">
-                    <i class="bi bi-download"></i> 下载课件
-                </button>
+                <button type="button" class="btn btn-primary" id="btnSelectCourseInModal"><i class="bi bi-plus-circle"></i> 选择此课程</button>
+                <a class="btn btn-success d-none" id="btnDownloadMaterialLink" target="_blank"><i class="bi bi-download"></i> 下载课件</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ====== 通用编辑模态框 ====== -->
+<div class="modal fade" id="formModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="formModalTitle">编辑</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="formModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="btnFormSave">保存</button>
             </div>
         </div>
     </div>
@@ -125,9 +139,17 @@ function renderPage(page) {
     }
 }
 
+function showAlert(msg) { alert(msg); }
+
 async function init() {
-    // TODO: 检查登录状态 api.auth.currentUser()
-    // TODO: 如果不是 student 角色，跳转回 /
+    const res = await api.auth.currentUser();
+    if (!res.success || res.user.role !== 'student') {
+        window.location.href = '/';
+        return;
+    }
+    myStudentId = res.user.id;
+    document.getElementById('currentUserName').textContent = res.user.name || res.user.username;
+    document.getElementById('myName').textContent = res.user.name || '';
     renderPage('dashboard');
 }
 init();
@@ -137,114 +159,241 @@ init();
 // 控制台
 // ============================================================
 
-function renderDashboard(container) {
+async function renderDashboard(container) {
     container.innerHTML = `
         <h4 class="mb-4"><i class="bi bi-speedometer2"></i> 学生控制台</h4>
-        <div class="card">
-            <div class="card-body">
-                <h5>学生功能</h5>
-                <ul>
-                    <li>浏览可选课程，选择自己的选修课程</li>
-                    <li>查看已选课程及选课结果（中签状态）</li>
-                    <li><strong>注意：</strong>选课时系统将自动检查先修课程是否完成</li>
-                    <li>查询成绩、下载课件</li>
-                    <li>与任课教师发送和回复消息</li>
-                </ul>
-            </div>
+        <div class="row g-3 mb-4">
+            <div class="col-md-3"><div class="card text-bg-primary"><div class="card-body text-center"><h5 id="statTotalCourses">--</h5><p>可选课程</p></div></div></div>
+            <div class="col-md-3"><div class="card text-bg-success"><div class="card-body text-center"><h5 id="statMySelections">--</h5><p>已选课程</p></div></div></div>
+            <div class="col-md-3"><div class="card text-bg-warning"><div class="card-body text-center"><h5 id="statConfirmed">--</h5><p>已中签</p></div></div></div>
+            <div class="col-md-3"><div class="card text-bg-info"><div class="card-body text-center"><h5 id="statAvgScore">--</h5><p>平均绩点</p></div></div></div>
         </div>
+        <div class="card"><div class="card-body">
+            <h5>学生功能</h5>
+            <ul>
+                <li>浏览可选课程，选择自己的选修课程</li>
+                <li>查看已选课程及选课结果（中签状态）</li>
+                <li><strong>注意：</strong>选课时系统将自动检查先修课程是否完成</li>
+                <li>查询成绩、下载课件</li>
+                <li>与任课教师发送和回复消息</li>
+            </ul>
+        </div></div>
     `;
+    // 加载统计数据
+    try {
+        const [cRes, sRes, gRes] = await Promise.all([
+            api.student.listCourses({ page: 1, page_size: 1 }),
+            api.student.listMySelections(),
+            api.student.listMyGrades()
+        ]);
+        if (cRes.success) document.getElementById('statTotalCourses').textContent = cRes.data.total;
+        if (sRes.success) {
+            document.getElementById('statMySelections').textContent = sRes.data.length;
+            const confirmed = sRes.data.filter(s => s.status === 'confirmed').length;
+            document.getElementById('statConfirmed').textContent = confirmed;
+        }
+        if (gRes.success && gRes.data.length > 0) {
+            const scores = gRes.data.filter(g => g.grade_point != null).map(g => g.grade_point);
+            if (scores.length > 0) {
+                const avg = (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2);
+                document.getElementById('statAvgScore').textContent = avg;
+            }
+        }
+    } catch(e) {}
 }
 
 
 // ============================================================
-// 个人信息（需求8: 对自己基本信息的查询）
+// 个人信息（需求8: 对自己基本信息的查询和修改）
 // ============================================================
 
-function renderProfile(container) {
+async function renderProfile(container) {
     container.innerHTML = `
         <h4 class="mb-3"><i class="bi bi-person"></i> 个人信息</h4>
         <div class="card"><div class="card-body">
-            <div id="profileInfo">
-                <!-- TODO: 加载个人信息 -->
-                <p class="text-muted">加载中...</p>
-            </div>
-            <button class="btn btn-outline-primary btn-sm mt-2" id="btnEditProfile">
-                <i class="bi bi-pencil"></i> 修改信息
-            </button>
+            <div id="profileInfo"><p class="text-muted">加载中...</p></div>
+            <button class="btn btn-outline-primary btn-sm mt-2" id="btnEditProfile"><i class="bi bi-pencil"></i> 修改信息</button>
         </div></div>
     `;
-    // TODO: 调用 api.student.getProfile() 加载个人信息
-    // TODO: 修改按钮：弹出编辑表单（邮箱、电话等），调用 api.student.updateProfile(data)
+
+    const res = await api.student.getProfile();
+    if (!res.success) { document.getElementById('profileInfo').innerHTML = '<p class="text-danger">加载失败</p>'; return; }
+    const u = res.user;
+    document.getElementById('profileInfo').innerHTML = `
+        <table class="table table-sm w-auto">
+            <tr><td><strong>学号</strong></td><td>${u.username}</td></tr>
+            <tr><td><strong>姓名</strong></td><td>${u.name}</td></tr>
+            <tr><td><strong>学院ID</strong></td><td>${u.college_id || '-'}</td></tr>
+            <tr><td><strong>邮箱</strong></td><td>${u.email || '-'}</td></tr>
+            <tr><td><strong>电话</strong></td><td>${u.phone || '-'}</td></tr>
+        </table>
+    `;
+
+    document.getElementById('btnEditProfile').addEventListener('click', () => {
+        document.getElementById('formModalTitle').textContent = '修改个人信息';
+        document.getElementById('formModalBody').innerHTML = `
+            <div class="mb-3"><label class="form-label">邮箱</label><input class="form-control" id="f_email" value="${u.email || ''}"></div>
+            <div class="mb-3"><label class="form-label">电话</label><input class="form-control" id="f_phone" value="${u.phone || ''}"></div>
+        `;
+        const modal = new bootstrap.Modal(document.getElementById('formModal'));
+        document.getElementById('btnFormSave').onclick = async function() {
+            const data = {
+                email: document.getElementById('f_email').value.trim(),
+                phone: document.getElementById('f_phone').value.trim(),
+            };
+            const result = await api.student.updateProfile(data);
+            if (result.success) { modal.hide(); renderProfile(container); }
+            showAlert(result.message);
+        };
+        modal.show();
+    });
 }
 
 
 // ============================================================
-// 选课页面（需求8: 指定自己的选修课程; 需求10: 先修课程检查; 需求11: 浏览课程信息）
+// 选课（需求8/10/11: 浏览课程、选课、先修课程检查）
 // ============================================================
 
-function renderCourseSelection(container) {
+let courseSelectionPage = 1, courseSelectionPageSize = 12;
+let courseSearchKeyword = '', courseCollegeFilter = null;
+
+async function renderCourseSelection(container) {
     container.innerHTML = `
         <h4 class="mb-3"><i class="bi bi-plus-circle"></i> 选课</h4>
         <div class="card"><div class="card-body">
-            <!-- 搜索和筛选 -->
             <div class="row g-2 mb-3">
                 <div class="col-md-3">
                     <input class="form-control" id="courseSearchInput" placeholder="搜索课程名称">
                 </div>
                 <div class="col-md-2">
-                    <select class="form-select" id="collegeFilter">
-                        <option value="">全部学院</option>
-                        <!-- TODO: 动态加载学院列表 -->
-                    </select>
+                    <select class="form-select" id="collegeFilter"><option value="">全部学院</option></select>
                 </div>
                 <div class="col-md-auto">
-                    <button class="btn btn-outline-secondary" id="btnSearchCourse">
-                        <i class="bi bi-search"></i> 查询
-                    </button>
+                    <button class="btn btn-outline-secondary" id="btnSearchCourse"><i class="bi bi-search"></i> 查询</button>
                 </div>
             </div>
-            <!-- 课程卡片列表 -->
-            <div class="row g-3" id="courseCardList">
-                <div class="col-12 text-center text-muted">加载中...</div>
-            </div>
+            <div class="row g-3" id="courseCardList"></div>
+            <nav id="courseSelectionPagination" class="mt-3"></nav>
         </div></div>
     `;
 
-    // TODO: 调用 api.student.listCourses(page, page_size, keyword, college_id) 加载课程列表
-    // TODO: 以卡片形式展示每门课程：课程名、学分、教师、学院、已选人数/限选人数、先修课程
-    // TODO: 点击卡片 → 弹出课程详情模态框（含课程介绍syllabus、先修课程、课件下载）
-    // TODO: 详情模态框中"选择此课程"按钮：
-    //       1. 调用 api.student.selectCourse(courseId)
-    //       2. 如果返回错误（先修课程未通过），弹出提示："您没有学习该课程的先修课程，不能进行选课！"
-    //       3. 如果成功，提示"选课成功，请等待抽签结果"
+    // 加载学院列表
+    try {
+        const resp = await fetch('/api/admin/colleges');
+        const colRes = await resp.json();
+        if (colRes.success && colRes.data) {
+            const sel = document.getElementById('collegeFilter');
+            colRes.data.forEach(c => { sel.innerHTML += `<option value="${c.id}">${c.name}</option>`; });
+        }
+    } catch(e) {}
+
+    document.getElementById('btnSearchCourse').addEventListener('click', () => {
+        courseSearchKeyword = document.getElementById('courseSearchInput').value.trim();
+        courseCollegeFilter = document.getElementById('collegeFilter').value || null;
+        courseSelectionPage = 1;
+        refreshCourseCards();
+    });
+    refreshCourseCards();
 }
 
-// 浏览课程详情（需求11: 浏览课程信息）
-function showCourseDetail(courseId) {
-    // TODO: 调用 api.student.getCourseDetail(courseId)
-    // TODO: 显示课程完整信息：名称、介绍(syllabus)、学分、教师、先修课程列表、课件链接
-    // TODO: 如果学生已选中该课程，显示课件下载按钮
-    // TODO: 模态框底部按钮处理选课或下载课件
+async function refreshCourseCards() {
+    const params = { page: courseSelectionPage, page_size: courseSelectionPageSize, college_id: courseCollegeFilter, keyword: courseSearchKeyword };
+    const res = await api.student.listCourses(params);
+    const cardsDiv = document.getElementById('courseCardList');
+    if (!res.success) { cardsDiv.innerHTML = '<div class="col-12 text-danger">加载失败</div>'; return; }
+    const items = res.data.items;
+    if (items.length === 0) {
+        cardsDiv.innerHTML = '<div class="col-12 text-muted">暂无课程</div>';
+    } else {
+        cardsDiv.innerHTML = items.map(c => `
+            <div class="col-md-4">
+                <div class="card h-100 course-card" style="cursor:pointer;" onclick="showCourseDetailModal(${c.id})">
+                    <div class="card-body">
+                        <h6 class="card-title">${c.name}</h6>
+                        <p class="card-text small text-muted">${(c.description || '').substring(0, 60)}</p>
+                        <p class="mb-0"><small>学分: ${c.credits} | ${c.selection_count || 0}/${c.max_students}人</small></p>
+                        <p class="mb-0"><small>先修: ${Array.isArray(c.prerequisites) && c.prerequisites.length > 0 ? c.prerequisites.join(',') : '无'}</small></p>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+    renderPagination('courseSelectionPagination', courseSelectionPage, res.data.total, courseSelectionPageSize, (p) => { courseSelectionPage = p; refreshCourseCards(); });
+}
+
+function renderPagination(navId, page, total, pageSize, callback) {
+    const nav = document.getElementById(navId);
+    if (!nav) return;
+    const totalPages = Math.ceil(total / pageSize);
+    if (totalPages <= 1) { nav.innerHTML = ''; return; }
+    let html = '<ul class="pagination pagination-sm">';
+    html += `<li class="page-item ${page <= 1 ? 'disabled' : ''}"><a class="page-link" href="#">上一页</a></li>`;
+    for (let i = 1; i <= totalPages; i++) {
+        html += `<li class="page-item ${i === page ? 'active' : ''}"><a class="page-link" href="#">${i}</a></li>`;
+    }
+    html += `<li class="page-item ${page >= totalPages ? 'disabled' : ''}"><a class="page-link" href="#">下一页</a></li>`;
+    html += '</ul>';
+    nav.innerHTML = html;
+    nav.querySelectorAll('a.page-link').forEach(a => {
+        a.addEventListener('click', function(e) {
+            e.preventDefault();
+            const txt = this.textContent;
+            if (txt === '上一页') callback(Math.max(1, page - 1));
+            else if (txt === '下一页') callback(Math.min(totalPages, page + 1));
+            else callback(parseInt(txt));
+        });
+    });
+}
+
+// 课程详情模态框
+async function showCourseDetailModal(courseId) {
+    currentDetailCourseId = courseId;
+    const res = await api.student.getCourseDetail(courseId);
+    if (!res.success) { showAlert(res.message); return; }
+    const c = res.course;
+    document.getElementById('courseDetailTitle').textContent = c.name;
+    document.getElementById('courseDetailBody').innerHTML = `
+        <p><strong>课程描述：</strong>${c.description || '暂无'}</p>
+        <p><strong>课程介绍：</strong>${c.syllabus || '暂无'}</p>
+        <p><strong>学分：</strong>${c.credits} | <strong>限选人数：</strong>${c.max_students} | <strong>已选人数：</strong>${c.selection_count || 0}</p>
+        <p><strong>先修课程ID：</strong>${Array.isArray(c.prerequisites) && c.prerequisites.length > 0 ? c.prerequisites.join(', ') : '无'}</p>
+        ${c.course_material_path ? '<p><span class="badge bg-success">有课件可下载</span></p>' : '<p class="text-muted">暂无课件</p>'}
+    `;
+    document.getElementById('btnSelectCourseInModal').style.display = 'inline-block';
+    document.getElementById('btnDownloadMaterialLink').classList.add('d-none');
+    if (c.course_material_path) {
+        const link = document.getElementById('btnDownloadMaterialLink');
+        link.classList.remove('d-none');
+        link.href = '/api/student/courses/' + courseId + '/download-material';
+    }
+
+    document.getElementById('btnSelectCourseInModal').onclick = async function() {
+        const selRes = await api.student.selectCourse(courseId);
+        if (selRes.success) {
+            bootstrap.Modal.getInstance(document.getElementById('courseDetailModal')).hide();
+        }
+        showAlert(selRes.message);
+    };
+
+    const modal = new bootstrap.Modal(document.getElementById('courseDetailModal'));
+    modal.show();
 }
 
 
 // ============================================================
-// 已选课程（需求8: 查询已选课程; 需求9: 查询自己选课结果）
+// 已选课程（需求8/9: 查询已选课程）
 // ============================================================
 
-function renderMySelections(container) {
+async function renderMySelections(container) {
     container.innerHTML = `
         <h4 class="mb-3"><i class="bi bi-check2-square"></i> 已选课程</h4>
         <div class="card"><div class="card-body">
             <table class="table table-hover">
                 <thead class="table-light">
-                    <tr>
-                        <th>课程名称</th><th>学分</th><th>教师</th>
-                        <th>状态</th><th>选课时间</th><th>操作</th>
-                    </tr>
+                    <tr><th>课程名称</th><th>学分</th><th>状态</th><th>选课时间</th><th>操作</th></tr>
                 </thead>
                 <tbody id="mySelectionsBody">
-                    <tr><td colspan="6" class="text-center text-muted">加载中...</td></tr>
+                    <tr><td colspan="5" class="text-center text-muted">加载中...</td></tr>
                 </tbody>
             </table>
             <div class="mt-2">
@@ -257,9 +406,30 @@ function renderMySelections(container) {
         </div></div>
     `;
 
-    // TODO: 调用 api.student.listMySelections()
-    // TODO: 渲染选课列表，按状态显示不同标签颜色
-    // TODO: pending状态的课程可"取消选课" → 调用 api.student.cancelSelection(selectionId)
+    const res = await api.student.listMySelections();
+    const tbody = document.getElementById('mySelectionsBody');
+    if (!res.success) { tbody.innerHTML = '<tr><td colspan="5" class="text-danger">加载失败</td></tr>'; return; }
+    if (res.data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-muted">暂无已选课程</td></tr>';
+    } else {
+        const statusMap = { pending: '待抽签', confirmed: '已中签', cancelled: '已取消' };
+        const badgeColor = { pending: 'warning', confirmed: 'success', cancelled: 'secondary' };
+        tbody.innerHTML = res.data.map(s => `
+            <tr>
+                <td>${s.course_name}</td><td>${s.credits}</td>
+                <td><span class="badge bg-${badgeColor[s.status] || 'secondary'}">${statusMap[s.status] || s.status}</span></td>
+                <td>${s.selected_at || '-'}</td>
+                <td>${s.status === 'pending' ? `<button class="btn btn-sm btn-outline-danger" onclick="cancelSelection(${s.id})">取消选课</button>` : '-'}</td>
+            </tr>
+        `).join('');
+    }
+}
+
+async function cancelSelection(selectionId) {
+    if (!confirm('确定要取消该选课吗？')) return;
+    const res = await api.student.cancelSelection(selectionId);
+    showAlert(res.message);
+    if (res.success) renderMySelections(document.getElementById('mainContent'));
 }
 
 
@@ -267,7 +437,7 @@ function renderMySelections(container) {
 // 成绩查询（需求11: 查询成绩）
 // ============================================================
 
-function renderMyGrades(container) {
+async function renderMyGrades(container) {
     container.innerHTML = `
         <h4 class="mb-3"><i class="bi bi-bar-chart"></i> 成绩查询</h4>
         <div class="card"><div class="card-body">
@@ -282,8 +452,22 @@ function renderMyGrades(container) {
         </div></div>
     `;
 
-    // TODO: 调用 api.student.listMyGrades()
-    // TODO: 渲染成绩表格，未录入成绩的显示"--"
+    const res = await api.student.listMyGrades();
+    const tbody = document.getElementById('myGradesBody');
+    if (!res.success) { tbody.innerHTML = '<tr><td colspan="5" class="text-danger">加载失败</td></tr>'; return; }
+    if (res.data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-muted">暂无成绩</td></tr>';
+    } else {
+        tbody.innerHTML = res.data.map(g => `
+            <tr>
+                <td>${g.course_name || g.course_id}</td>
+                <td>${g.credits || '-'}</td>
+                <td>${g.score != null ? g.score : '-'}</td>
+                <td>${g.grade_point != null ? g.grade_point.toFixed(1) : '-'}</td>
+                <td>${g.score != null ? (g.score >= 60 ? '<span class="badge bg-success">通过</span>' : '<span class="badge bg-danger">未通过</span>') : '<span class="badge bg-secondary">未录入</span>'}</td>
+            </tr>
+        `).join('');
+    }
 }
 
 
@@ -291,66 +475,123 @@ function renderMyGrades(container) {
 // 消息（需求12: 给任课教师发送信息和回复任课教师的留言）
 // ============================================================
 
-function renderMessages(container) {
+async function renderMessages(container) {
     container.innerHTML = `
         <h4 class="mb-3"><i class="bi bi-envelope"></i> 消息</h4>
         <div class="card"><div class="card-body">
             <ul class="nav nav-tabs" id="messageTabs">
-                <li class="nav-item">
-                    <a class="nav-link active" data-bs-toggle="tab" href="#msgInbox">收件箱</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" data-bs-toggle="tab" href="#msgOutbox">发件箱</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" data-bs-toggle="tab" href="#msgSend">发送消息</a>
-                </li>
+                <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#msgInbox">收件箱</a></li>
+                <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#msgOutbox">发件箱</a></li>
+                <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#msgSend">发送消息</a></li>
             </ul>
             <div class="tab-content mt-3">
-                <!-- 收件箱 -->
                 <div class="tab-pane fade show active" id="msgInbox">
-                    <div id="inboxList">
-                        <p class="text-muted">加载中...</p>
-                    </div>
+                    <div id="inboxList"><p class="text-muted">加载中...</p></div>
+                    <nav id="inboxPagination"></nav>
                 </div>
-                <!-- 发件箱 -->
                 <div class="tab-pane fade" id="msgOutbox">
-                    <div id="outboxList">
-                        <p class="text-muted">加载中...</p>
-                    </div>
+                    <div id="outboxList"><p class="text-muted">加载中...</p></div>
+                    <nav id="outboxPagination"></nav>
                 </div>
-                <!-- 发送消息 / 回复 -->
                 <div class="tab-pane fade" id="msgSend">
                     <form id="sendMessageForm">
                         <div class="mb-3">
-                            <label class="form-label">选择课程</label>
+                            <label class="form-label">选择课程（发送给该课程任课教师）</label>
                             <select class="form-select" id="msgCourseSelect">
                                 <option value="">-- 选择已中签的课程 --</option>
-                                <!-- TODO: 加载已中签的课程 -->
                             </select>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">消息内容</label>
                             <textarea class="form-control" id="msgContent" rows="4" required></textarea>
                         </div>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-send"></i> 发送给任课教师
-                        </button>
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> 发送给任课教师</button>
                     </form>
                 </div>
             </div>
         </div></div>
     `;
 
-    // TODO: 收件箱 - 调用 api.student.listReceivedMessages()
-    // TODO:   每条消息显示：发送者(教师)姓名、课程、内容、时间
-    // TODO:   提供"回复"按钮 → 调用 api.student.replyMessage(messageId, content)
-    // TODO:   提供"标记已读" → 调用 api.student.markRead(messageId)
-    // TODO: 发件箱 - 调用 api.student.listSentMessages()
-    // TODO: 发送消息 - 表单提交：
-    //       1. 获取选中的 course_id（教师的课程）
-    //       2. 获取消息内容
-    //       3. 调用 api.student.sendMessage({ receiver_id: teacherId, course_id, content })
+    // 发送消息 - 加载已中签课程
+    const selRes = await api.student.listMySelections();
+    if (selRes.success) {
+        const confirmedCourses = selRes.data.filter(s => s.status === 'confirmed');
+        const sel = document.getElementById('msgCourseSelect');
+        confirmedCourses.forEach(s => { sel.innerHTML += `<option value="${s.course_id}">${s.course_name}</option>`; });
+    }
+
+    document.getElementById('sendMessageForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const courseId = parseInt(document.getElementById('msgCourseSelect').value) || null;
+        const content = document.getElementById('msgContent').value.trim();
+        if (!courseId || !content) { showAlert('请选择课程并输入消息内容'); return; }
+        // 需要知道课程的teacher_id，发送给教师
+        const courseRes = await api.student.getCourseDetail(courseId);
+        if (!courseRes.success) { showAlert('获取课程信息失败'); return; }
+        const teacherId = courseRes.course.teacher_id;
+        const res = await api.student.sendMessage({ receiver_id: teacherId, course_id: courseId, content });
+        if (res.success) document.getElementById('msgContent').value = '';
+        showAlert(res.message);
+    });
+
+    // 收件箱
+    loadStudentInbox(1);
+    // 发件箱切换时加载
+    document.querySelector('a[href="#msgOutbox"]').addEventListener('click', () => loadStudentOutbox(1));
+}
+
+async function loadStudentInbox(page) {
+    const res = await api.student.listReceivedMessages({ page, page_size: 10 });
+    const div = document.getElementById('inboxList');
+    if (!res.success || res.data.items.length === 0) {
+        div.innerHTML = '<p class="text-muted">暂无收到消息</p>';
+    } else {
+        div.innerHTML = res.data.items.map(m => `
+            <div class="border-bottom py-2 ${m.is_read ? '' : 'bg-light fw-bold'}">
+                <div>
+                    <small class="text-primary">来自: ${m.sender_name || m.sender_id}</small>
+                    <small class="text-muted ms-3">${m.created_at || ''}</small>
+                    ${!m.is_read ? `<button class="btn btn-sm btn-outline-secondary float-end" onclick="studentMarkRead(${m.id})">标为已读</button>` : ''}
+                    <button class="btn btn-sm btn-outline-primary float-end me-1" onclick="studentReply(${m.id})">回复</button>
+                </div>
+                <div class="mt-1">${m.content}</div>
+                ${m.course_id ? `<small class="text-muted">课程ID: ${m.course_id}</small>` : ''}
+            </div>
+        `).join('');
+    }
+    const rp = renderPagination;
+    rp('inboxPagination', page, res.data.total, 10, loadStudentInbox);
+}
+
+function studentMarkRead(msgId) {
+    api.student.markRead(msgId).then(() => loadStudentInbox(1));
+}
+
+function studentReply(msgId) {
+    const content = prompt('请输入回复内容：');
+    if (!content) return;
+    api.student.replyMessage(msgId, content).then(res => {
+        showAlert(res.message);
+        if (res.success) loadStudentInbox(1);
+    });
+}
+
+async function loadStudentOutbox(page) {
+    const res = await api.student.listSentMessages({ page, page_size: 10 });
+    const div = document.getElementById('outboxList');
+    if (!res.success || res.data.items.length === 0) {
+        div.innerHTML = '<p class="text-muted">暂无发送消息</p>';
+    } else {
+        div.innerHTML = res.data.items.map(m => `
+            <div class="border-bottom py-2">
+                <div><small class="text-success">发送给: ${m.receiver_name || m.receiver_id}</small>
+                    <small class="text-muted ms-3">${m.created_at || ''}</small></div>
+                <div class="mt-1">${m.content}</div>
+                ${m.course_id ? `<small class="text-muted">课程ID: ${m.course_id}</small>` : ''}
+            </div>
+        `).join('');
+    }
+    renderPagination('outboxPagination', page, res.data.total, 10, loadStudentOutbox);
 }
 </script>
 </body>

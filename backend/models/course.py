@@ -3,6 +3,7 @@
 """
 
 import json
+from database import get_db
 
 
 class Course:
@@ -52,55 +53,119 @@ class Course:
 
     @staticmethod
     def find_by_id(course_id):
-        """根据ID查找课程"""
-        # TODO: SELECT * FROM courses WHERE id = ?
-        pass
+        db = get_db()
+        row = db.execute('SELECT * FROM courses WHERE id = ?', (course_id,)).fetchone()
+        if row:
+            return Course(row)
+        return None
+
 
     @staticmethod
     def find_all(college_id=None, teacher_id=None, page=1, page_size=20):
-        """分页查询课程列表，可按学院和教师筛选"""
-        # TODO: SELECT * FROM courses WHERE college_id=? AND teacher_id=? LIMIT ? OFFSET ?
-        # TODO: 返回 (课程列表, 总数)
-        pass
+        db = get_db()
+        conditions = []
+        params = []
+
+        if college_id is not None:
+            conditions.append('college_id = ?')
+            params.append(college_id)
+        if teacher_id is not None:
+            conditions.append('teacher_id = ?')
+            params.append(teacher_id)
+
+        where_clause = ' WHERE ' + ' AND '.join(conditions) if conditions else ''
+
+        count_row = db.execute(
+            f'SELECT COUNT(*) as cnt FROM courses{where_clause}', params
+        ).fetchone()
+        total = count_row['cnt']
+
+        offset = (page - 1) * page_size
+        rows = db.execute(
+            f'SELECT * FROM courses{where_clause} LIMIT ? OFFSET ?',
+            params + [page_size, offset]
+        ).fetchall()
+
+        courses = [Course(r) for r in rows]
+        return courses, total
+
 
     @staticmethod
     def find_by_college(college_id):
-        """查询某学院所有课程"""
-        # TODO: SELECT * FROM courses WHERE college_id = ?
-        pass
+        db = get_db()
+        rows = db.execute(
+            'SELECT * FROM courses WHERE college_id = ?', (college_id,)
+        ).fetchall()
+        return [Course(r) for r in rows]
+
 
     @staticmethod
     def find_by_teacher(teacher_id):
-        """查询某教师的所有课程"""
-        # TODO: SELECT * FROM courses WHERE teacher_id = ?
-        pass
+        db = get_db()
+        rows = db.execute(
+            'SELECT * FROM courses WHERE teacher_id = ?', (teacher_id,)
+        ).fetchall()
+        return [Course(r) for r in rows]
+
 
     def save(self):
-        """新增课程"""
-        # TODO: INSERT INTO courses (...) VALUES (...)
-        pass
+        db = get_db()
+        cursor = db.execute(
+            'INSERT INTO courses (name, description, credits, teacher_id, college_id, '
+            'max_students, prerequisites, syllabus, course_material_path) '
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            (self.name, self.description, self.credits, self.teacher_id,
+            self.college_id, self.max_students,
+            json.dumps(self.prerequisites),
+            self.syllabus, self.course_material_path)
+        )
+        db.commit()
+        self.id = cursor.lastrowid
+        return self
+
 
     def update(self):
-        """更新课程信息"""
-        # TODO: UPDATE courses SET name=?, description=?, credits=?, teacher_id=?, college_id=?, max_students=?, prerequisites=?, syllabus=?, course_material_path=? WHERE id=?
-        pass
+        db = get_db()
+        db.execute(
+            'UPDATE courses SET name=?, description=?, credits=?, teacher_id=?, '
+            'college_id=?, max_students=?, prerequisites=?, syllabus=?, '
+            'course_material_path=? WHERE id=?',
+            (self.name, self.description, self.credits, self.teacher_id,
+            self.college_id, self.max_students,
+            json.dumps(self.prerequisites),
+            self.syllabus, self.course_material_path, self.id)
+        )
+        db.commit()
+
 
     def delete(self):
-        """删除课程"""
-        # TODO: DELETE FROM courses WHERE id = ?
-        pass
+        db = get_db()
+        db.execute('DELETE FROM courses WHERE id = ?', (self.id,))
+        db.commit()
+
 
     @staticmethod
     def get_selection_count(course_id):
-        """获取某门课程的选课人数"""
-        # TODO: SELECT COUNT(*) FROM course_selections WHERE course_id = ? AND status != 'cancelled'
-        pass
+        db = get_db()
+        row = db.execute(
+            "SELECT COUNT(*) as cnt FROM course_selections "
+            "WHERE course_id = ? AND status != 'cancelled'",
+            (course_id,)
+        ).fetchone()
+        return row['cnt']
+
 
     @staticmethod
     def get_selection_statistics():
-        """获取每门课程的选课人数统计（用于柱状图）"""
-        # TODO: SELECT c.id, c.name, COUNT(cs.id) as count
-        #       FROM courses c LEFT JOIN course_selections cs ON c.id = cs.course_id
-        #       WHERE cs.status != 'cancelled'
-        #       GROUP BY c.id
-        pass
+        db = get_db()
+        rows = db.execute(
+            "SELECT c.id, c.name, COUNT(cs.id) as count "
+            "FROM courses c LEFT JOIN course_selections cs "
+            "ON c.id = cs.course_id AND cs.status != 'cancelled' "
+            "GROUP BY c.id"
+        ).fetchall()
+        return [
+            {'course_id': r['id'], 'course_name': r['name'], 'count': r['count']}
+            for r in rows
+        ]
+

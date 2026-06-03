@@ -2,6 +2,7 @@
 成绩模型
 """
 
+from database import get_db
 
 class Grade:
     """成绩类，对应 grades 表"""
@@ -41,54 +42,95 @@ class Grade:
 
     @staticmethod
     def find_by_id(grade_id):
-        """根据ID查找成绩"""
-        # TODO: SELECT * FROM grades WHERE id = ?
-        pass
+        db = get_db()
+        row = db.execute('SELECT * FROM grades WHERE id = ?', (grade_id,)).fetchone()
+        if row:
+            return Grade(row)
+        return None
 
     @staticmethod
     def find_by_student(student_id):
-        """查询某学生的所有成绩"""
-        # TODO: SELECT g.*, c.name as course_name FROM grades g
-        #       JOIN courses c ON g.course_id = c.id WHERE g.student_id = ?
-        pass
+        db = get_db()
+        rows = db.execute(
+            'SELECT g.*, c.name as course_name FROM grades g '
+            'JOIN courses c ON g.course_id = c.id WHERE g.student_id = ?',
+            (student_id,)
+        ).fetchall()
+        return [Grade(r) for r in rows]
+
 
     @staticmethod
     def find_by_course(course_id):
-        """查询某课程的所有学生成绩"""
-        # TODO: SELECT g.*, u.name as student_name FROM grades g
-        #       JOIN users u ON g.student_id = u.id WHERE g.course_id = ?
-        pass
+        db = get_db()
+        rows = db.execute(
+            'SELECT g.*, u.name as student_name FROM grades g '
+            'JOIN users u ON g.student_id = u.id WHERE g.course_id = ?',
+            (course_id,)
+        ).fetchall()
+        return [Grade(r) for r in rows]
 
     def save(self):
-        """新增或更新成绩（如果已有记录则更新）"""
-        # TODO: INSERT OR REPLACE INTO grades (student_id, course_id, score, grade_point, recorded_by) VALUES (?, ?, ?, ?, ?)
-        pass
-
-    def update(self):
-        """更新成绩"""
-        # TODO: UPDATE grades SET score=?, grade_point=? WHERE id=?
-        pass
+        db = get_db()
+        cursor = db.execute(
+            'INSERT OR REPLACE INTO grades (student_id, course_id, score, grade_point, recorded_by) '
+            'VALUES (?, ?, ?, ?, ?)',
+            (self.student_id, self.course_id, self.score, self.grade_point, self.recorded_by)
+        )
+        db.commit()
+        self.id = cursor.lastrowid
+        return self
 
     def delete(self):
-        """删除成绩记录"""
-        # TODO: DELETE FROM grades WHERE id = ?
-        pass
+        db = get_db()
+        db.execute('DELETE FROM grades WHERE id = ?', (self.id,))
+        db.commit()
 
     # ---- 统计分析 ----
 
     @staticmethod
     def get_statistics(course_id):
-        """
-        获取课程成绩统计信息
-        返回: {
-            'total': 总人数,
-            'avg_score': 平均分,
-            'max_score': 最高分,
-            'min_score': 最低分,
-            'pass_count': 及格人数 (>=60),
-            'pass_rate': 及格率,
-            'score_distribution': { '0-59': n, '60-69': n, '70-79': n, '80-89': n, '90-100': n }
+        db = get_db()
+        rows = db.execute(
+            'SELECT score FROM grades WHERE course_id = ? AND score IS NOT NULL',
+            (course_id,)
+        ).fetchall()
+
+        scores = [r['score'] for r in rows]
+        total = len(scores)
+
+        if total == 0:
+            return {
+                'total': 0, 'avg_score': 0, 'max_score': 0, 'min_score': 0,
+                'pass_count': 0, 'pass_rate': 0,
+                'score_distribution': {'0-59': 0, '60-69': 0, '70-79': 0, '80-89': 0, '90-100': 0}
+            }
+
+        avg_score = round(sum(scores) / total, 2)
+        max_score = max(scores)
+        min_score = min(scores)
+        pass_count = sum(1 for s in scores if s >= 60)
+        pass_rate = round(pass_count / total * 100, 2)
+
+        distribution = {'0-59': 0, '60-69': 0, '70-79': 0, '80-89': 0, '90-100': 0}
+        for s in scores:
+            if s < 60:
+                distribution['0-59'] += 1
+            elif s < 70:
+                distribution['60-69'] += 1
+            elif s < 80:
+                distribution['70-79'] += 1
+            elif s < 90:
+                distribution['80-89'] += 1
+            else:
+                distribution['90-100'] += 1
+
+        return {
+            'total': total,
+            'avg_score': avg_score,
+            'max_score': max_score,
+            'min_score': min_score,
+            'pass_count': pass_count,
+            'pass_rate': pass_rate,
+            'score_distribution': distribution,
         }
-        """
-        # TODO: 从 grades 表查询该课程所有成绩，计算各统计指标
-        pass
+

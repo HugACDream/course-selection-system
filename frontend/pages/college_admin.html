@@ -61,12 +61,47 @@
                     </a>
                 </li>
             </ul>
+            <div class="mt-auto px-3 py-2">
+                <small>当前用户: <span id="currentUserName">--</span></small>
+            </div>
         </nav>
 
         <!-- ====== 主内容区 ====== -->
         <main class="col-md-10 main-content" id="mainContent">
             <!-- 动态渲染 -->
         </main>
+    </div>
+</div>
+
+<!-- ====== 通用模态框：表单编辑 ====== -->
+<div class="modal fade" id="formModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="formModalTitle">编辑</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="formModalBody">
+                <!-- 表单内容由JS动态填充 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="btnFormSave">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ====== 确认删除模态框 ====== -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <p id="confirmMessage">确定要删除吗？</p>
+                <button class="btn btn-secondary me-2" data-bs-dismiss="modal">取消</button>
+                <button class="btn btn-danger" id="btnConfirmDelete">确认删除</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -79,7 +114,9 @@
 
 let currentPage = 'dashboard';
 let myCollegeId = null;
+let myCollegeName = '';
 
+// ====== 侧边栏导航 ======
 document.getElementById('sidebarNav').addEventListener('click', function(e) {
     e.preventDefault();
     const link = e.target.closest('a');
@@ -96,18 +133,50 @@ function renderPage(page) {
     const container = document.getElementById('mainContent');
     switch (page) {
         case 'dashboard':  renderDashboard(container); break;
-        case 'teachers':   renderTeacherList(container); break;
-        case 'students':   renderStudentList(container); break;
-        case 'courses':    renderCourseList(container); break;
-        case 'selections': renderSelectionList(container); break;
-        case 'lottery':    renderLotteryPage(container); break;
-        case 'grades':     renderGradeList(container); break;
+        case 'teachers':   loadTeacherList(container); break;
+        case 'students':   loadStudentList(container); break;
+        case 'courses':    loadCourseList(container); break;
+        case 'selections': loadSelectionList(container); break;
+        case 'lottery':    loadLotteryPage(container); break;
+        case 'grades':     loadGradeList(container); break;
     }
 }
 
+function renderPagination(navId, page, total, pageSize, callback) {
+    const nav = document.getElementById(navId);
+    if (!nav) return;
+    const totalPages = Math.ceil(total / pageSize);
+    if (totalPages <= 1) { nav.innerHTML = ''; return; }
+    let html = '<ul class="pagination pagination-sm">';
+    html += `<li class="page-item ${page <= 1 ? 'disabled' : ''}"><a class="page-link" href="#">上一页</a></li>`;
+    for (let i = 1; i <= totalPages; i++) {
+        html += `<li class="page-item ${i === page ? 'active' : ''}"><a class="page-link" href="#">${i}</a></li>`;
+    }
+    html += `<li class="page-item ${page >= totalPages ? 'disabled' : ''}"><a class="page-link" href="#">下一页</a></li>`;
+    html += '</ul>';
+    nav.innerHTML = html;
+    nav.querySelectorAll('a.page-link').forEach(a => {
+        a.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (this.textContent === '上一页') { callback(Math.max(1, page - 1)); }
+            else if (this.textContent === '下一页') { callback(Math.min(totalPages, page + 1)); }
+            else { callback(parseInt(this.textContent)); }
+        });
+    });
+}
+
+function showAlert(msg) { alert(msg); }
+
+// ====== 初始化 ======
 async function init() {
-    // TODO: 检查登录状态 api.auth.currentUser()，获取 college_id
-    // TODO: 如果不是 college_admin 角色，跳转回 /
+    const res = await api.auth.currentUser();
+    if (!res.success || res.user.role !== 'college_admin') {
+        window.location.href = '/';
+        return;
+    }
+    myCollegeId = res.user.college_id;
+    document.getElementById('currentUserName').textContent = res.user.name || res.user.username;
+    document.getElementById('myCollegeName').textContent = '学院ID: ' + (myCollegeId || '未分配');
     renderPage('dashboard');
 }
 init();
@@ -117,11 +186,14 @@ init();
 // 控制台
 // ============================================================
 
-function renderDashboard(container) {
+async function renderDashboard(container) {
     container.innerHTML = `
         <h4 class="mb-4"><i class="bi bi-speedometer2"></i> 学院控制台</h4>
         <div class="row g-3 mb-4" id="dashboardStats">
-            <!-- TODO: 动态加载本学院统计数据 -->
+            <div class="col-md-3"><div class="card text-bg-primary"><div class="card-body text-center"><h5 class="card-title" id="statTeachers">--</h5><p class="card-text">教师数</p></div></div></div>
+            <div class="col-md-3"><div class="card text-bg-success"><div class="card-body text-center"><h5 class="card-title" id="statStudents">--</h5><p class="card-text">学生数</p></div></div></div>
+            <div class="col-md-3"><div class="card text-bg-warning"><div class="card-body text-center"><h5 class="card-title" id="statCourses">--</h5><p class="card-text">课程数</p></div></div></div>
+            <div class="col-md-3"><div class="card text-bg-info"><div class="card-body text-center"><h5 class="card-title" id="statSelections">--</h5><p class="card-text">选课记录</p></div></div></div>
         </div>
         <div class="card">
             <div class="card-body">
@@ -136,99 +208,447 @@ function renderDashboard(container) {
             </div>
         </div>
     `;
+    // 加载统计数据
+    const [tRes, sRes, cRes, selRes] = await Promise.all([
+        api.collegeAdmin.listTeachers({ page: 1, page_size: 1 }),
+        api.collegeAdmin.listStudents({ page: 1, page_size: 1 }),
+        api.collegeAdmin.listCourses({ page: 1, page_size: 1 }),
+        api.collegeAdmin.listSelections({ page: 1, page_size: 1 }),
+    ]);
+    document.getElementById('statTeachers').textContent = tRes.success ? tRes.data.total : '--';
+    document.getElementById('statStudents').textContent = sRes.success ? sRes.data.total : '--';
+    document.getElementById('statCourses').textContent = cRes.success ? cRes.data.total : '--';
+    document.getElementById('statSelections').textContent = selRes.success ? selRes.data.total : '--';
 }
 
 
 // ============================================================
-// 本学院教师管理（需求3）
+// 教师管理（需求3: 对本学院教师增删改查）
 // ============================================================
 
-function renderTeacherList(container) {
+let teacherPage = 1, teacherPageSize = 20;
+
+async function loadTeacherList(container) {
     container.innerHTML = `
         <h4 class="mb-3"><i class="bi bi-person-badge"></i> 本学院教师管理</h4>
         <div class="card"><div class="card-body">
             <div class="mb-3">
-                <button class="btn btn-primary"><i class="bi bi-plus-circle"></i> 新增教师</button>
+                <button class="btn btn-primary" id="btnAddTeacher"><i class="bi bi-plus-circle"></i> 新增教师</button>
             </div>
             <table class="table table-hover">
                 <thead class="table-light"><tr><th>ID</th><th>工号</th><th>姓名</th><th>邮箱</th><th>电话</th><th>操作</th></tr></thead>
-                <tbody id="tableBody">
-                    <tr><td colspan="6" class="text-center text-muted">加载中...</td></tr>
-                </tbody>
+                <tbody id="teacherTableBody"></tbody>
             </table>
+            <nav id="teacherPagination"></nav>
         </div></div>
     `;
-    // TODO: 调用 api.collegeAdmin.listTeachers()
-    // TODO: 实现新增、编辑、删除功能
+    document.getElementById('btnAddTeacher').addEventListener('click', showAddTeacherForm);
+    refreshTeacherTable();
+}
+
+async function refreshTeacherTable() {
+    const res = await api.collegeAdmin.listTeachers({ page: teacherPage, page_size: teacherPageSize });
+    const tbody = document.getElementById('teacherTableBody');
+    if (!res.success) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">加载失败</td></tr>'; return; }
+    const items = res.data.items;
+    if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">暂无数据</td></tr>';
+    } else {
+        tbody.innerHTML = items.map(u => `
+            <tr>
+                <td>${u.id}</td><td>${u.username}</td><td>${u.name}</td>
+                <td>${u.email || '-'}</td><td>${u.phone || '-'}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary me-1" onclick="showEditTeacherForm(${u.id})">编辑</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteTeacher(${u.id},'${u.name}')">删除</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+    renderPagination('teacherPagination', teacherPage, res.data.total, teacherPageSize, (p) => { teacherPage = p; refreshTeacherTable(); });
+}
+
+function showAddTeacherForm() {
+    document.getElementById('formModalTitle').textContent = '新增教师';
+    document.getElementById('formModalBody').innerHTML = `
+        <div class="mb-3"><label class="form-label">工号</label><input class="form-control" id="f_username"></div>
+        <div class="mb-3"><label class="form-label">密码</label><input class="form-control" type="password" id="f_password"></div>
+        <div class="mb-3"><label class="form-label">姓名</label><input class="form-control" id="f_name"></div>
+        <div class="mb-3"><label class="form-label">邮箱</label><input class="form-control" id="f_email"></div>
+        <div class="mb-3"><label class="form-label">电话</label><input class="form-control" id="f_phone"></div>
+    `;
+    const modal = new bootstrap.Modal(document.getElementById('formModal'));
+    document.getElementById('btnFormSave').onclick = async function() {
+        const data = {
+            username: document.getElementById('f_username').value.trim(),
+            password: document.getElementById('f_password').value.trim(),
+            name: document.getElementById('f_name').value.trim(),
+            email: document.getElementById('f_email').value.trim(),
+            phone: document.getElementById('f_phone').value.trim(),
+        };
+        if (!data.username || !data.password || !data.name) {
+            showAlert('工号、密码和姓名不能为空'); return;
+        }
+        const res = await api.collegeAdmin.createTeacher(data);
+        if (res.success) { modal.hide(); refreshTeacherTable(); }
+        showAlert(res.message);
+    };
+    modal.show();
+}
+
+async function showEditTeacherForm(id) {
+    // college admin 没有单独的 getTeacher 接口，从列表接口分页找一个可行方案
+    // 直接用 fetch 请求获取单个教师
+    const resp = await fetch('/api/college-admin/teachers?page=1&page_size=100');
+    const listRes = await resp.json();
+    if (!listRes.success) { showAlert('获取教师信息失败'); return; }
+    const u = listRes.data.items.find(item => item.id === id);
+    if (!u) { showAlert('教师不存在'); return; }
+
+    document.getElementById('formModalTitle').textContent = '编辑教师';
+    document.getElementById('formModalBody').innerHTML = `
+        <div class="mb-3"><label class="form-label">姓名</label><input class="form-control" id="f_name" value="${u.name}"></div>
+        <div class="mb-3"><label class="form-label">邮箱</label><input class="form-control" id="f_email" value="${u.email || ''}"></div>
+        <div class="mb-3"><label class="form-label">电话</label><input class="form-control" id="f_phone" value="${u.phone || ''}"></div>
+    `;
+    const modal = new bootstrap.Modal(document.getElementById('formModal'));
+    document.getElementById('btnFormSave').onclick = async function() {
+        const data = {
+            name: document.getElementById('f_name').value.trim(),
+            email: document.getElementById('f_email').value.trim(),
+            phone: document.getElementById('f_phone').value.trim(),
+        };
+        const result = await api.collegeAdmin.updateTeacher(id, data);
+        if (result.success) { modal.hide(); refreshTeacherTable(); }
+        showAlert(result.message);
+    };
+    modal.show();
+}
+
+function confirmDeleteTeacher(id, name) {
+    document.getElementById('confirmMessage').textContent = `确定要删除教师"${name}"吗？`;
+    const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    document.getElementById('btnConfirmDelete').onclick = async function() {
+        const res = await api.collegeAdmin.deleteTeacher(id);
+        modal.hide();
+        showAlert(res.message);
+        if (res.success) refreshTeacherTable();
+    };
+    modal.show();
 }
 
 
 // ============================================================
-// 本学院学生管理（需求3）
+// 学生管理（需求3: 对本学院学生增删改查）
 // ============================================================
 
-function renderStudentList(container) {
+let studentPage = 1, studentPageSize = 20;
+
+async function loadStudentList(container) {
     container.innerHTML = `
         <h4 class="mb-3"><i class="bi bi-people"></i> 本学院学生管理</h4>
         <div class="card"><div class="card-body">
             <div class="mb-3">
-                <button class="btn btn-primary"><i class="bi bi-plus-circle"></i> 新增学生</button>
+                <button class="btn btn-primary" id="btnAddStudent"><i class="bi bi-plus-circle"></i> 新增学生</button>
             </div>
             <table class="table table-hover">
                 <thead class="table-light"><tr><th>ID</th><th>学号</th><th>姓名</th><th>邮箱</th><th>电话</th><th>操作</th></tr></thead>
-                <tbody id="tableBody">
-                    <tr><td colspan="6" class="text-center text-muted">加载中...</td></tr>
-                </tbody>
+                <tbody id="studentTableBody"></tbody>
             </table>
+            <nav id="studentPagination"></nav>
         </div></div>
     `;
-    // TODO: 调用 api.collegeAdmin.listStudents()
-    // TODO: 实现新增、编辑、删除功能
+    document.getElementById('btnAddStudent').addEventListener('click', showAddStudentForm);
+    refreshStudentTable();
+}
+
+async function refreshStudentTable() {
+    const res = await api.collegeAdmin.listStudents({ page: studentPage, page_size: studentPageSize });
+    const tbody = document.getElementById('studentTableBody');
+    if (!res.success) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">加载失败</td></tr>'; return; }
+    const items = res.data.items;
+    if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">暂无数据</td></tr>';
+    } else {
+        tbody.innerHTML = items.map(u => `
+            <tr>
+                <td>${u.id}</td><td>${u.username}</td><td>${u.name}</td>
+                <td>${u.email || '-'}</td><td>${u.phone || '-'}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary me-1" onclick="showEditStudentForm(${u.id})">编辑</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteStudent(${u.id},'${u.name}')">删除</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+    renderPagination('studentPagination', studentPage, res.data.total, studentPageSize, (p) => { studentPage = p; refreshStudentTable(); });
+}
+
+function showAddStudentForm() {
+    document.getElementById('formModalTitle').textContent = '新增学生';
+    document.getElementById('formModalBody').innerHTML = `
+        <div class="mb-3"><label class="form-label">学号</label><input class="form-control" id="f_username"></div>
+        <div class="mb-3"><label class="form-label">密码</label><input class="form-control" type="password" id="f_password"></div>
+        <div class="mb-3"><label class="form-label">姓名</label><input class="form-control" id="f_name"></div>
+        <div class="mb-3"><label class="form-label">邮箱</label><input class="form-control" id="f_email"></div>
+        <div class="mb-3"><label class="form-label">电话</label><input class="form-control" id="f_phone"></div>
+    `;
+    const modal = new bootstrap.Modal(document.getElementById('formModal'));
+    document.getElementById('btnFormSave').onclick = async function() {
+        const data = {
+            username: document.getElementById('f_username').value.trim(),
+            password: document.getElementById('f_password').value.trim(),
+            name: document.getElementById('f_name').value.trim(),
+            email: document.getElementById('f_email').value.trim(),
+            phone: document.getElementById('f_phone').value.trim(),
+        };
+        if (!data.username || !data.password || !data.name) {
+            showAlert('学号、密码和姓名不能为空'); return;
+        }
+        const res = await api.collegeAdmin.createStudent(data);
+        if (res.success) { modal.hide(); refreshStudentTable(); }
+        showAlert(res.message);
+    };
+    modal.show();
+}
+
+async function showEditStudentForm(id) {
+    const resp = await fetch('/api/college-admin/students?page=1&page_size=100');
+    const listRes = await resp.json();
+    if (!listRes.success) { showAlert('获取学生信息失败'); return; }
+    const u = listRes.data.items.find(item => item.id === id);
+    if (!u) { showAlert('学生不存在'); return; }
+
+    document.getElementById('formModalTitle').textContent = '编辑学生';
+    document.getElementById('formModalBody').innerHTML = `
+        <div class="mb-3"><label class="form-label">姓名</label><input class="form-control" id="f_name" value="${u.name}"></div>
+        <div class="mb-3"><label class="form-label">邮箱</label><input class="form-control" id="f_email" value="${u.email || ''}"></div>
+        <div class="mb-3"><label class="form-label">电话</label><input class="form-control" id="f_phone" value="${u.phone || ''}"></div>
+    `;
+    const modal = new bootstrap.Modal(document.getElementById('formModal'));
+    document.getElementById('btnFormSave').onclick = async function() {
+        const data = {
+            name: document.getElementById('f_name').value.trim(),
+            email: document.getElementById('f_email').value.trim(),
+            phone: document.getElementById('f_phone').value.trim(),
+        };
+        const result = await api.collegeAdmin.updateStudent(id, data);
+        if (result.success) { modal.hide(); refreshStudentTable(); }
+        showAlert(result.message);
+    };
+    modal.show();
+}
+
+function confirmDeleteStudent(id, name) {
+    document.getElementById('confirmMessage').textContent = `确定要删除学生"${name}"吗？`;
+    const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    document.getElementById('btnConfirmDelete').onclick = async function() {
+        const res = await api.collegeAdmin.deleteStudent(id);
+        modal.hide();
+        showAlert(res.message);
+        if (res.success) refreshStudentTable();
+    };
+    modal.show();
 }
 
 
 // ============================================================
-// 本学院课程管理（需求3）
+// 课程管理（需求3: 对本学院课程增删改查）
 // ============================================================
 
-function renderCourseList(container) {
+let coursePage = 1, coursePageSize = 20;
+
+async function loadCourseList(container) {
     container.innerHTML = `
         <h4 class="mb-3"><i class="bi bi-book"></i> 本学院课程管理</h4>
         <div class="card"><div class="card-body">
             <div class="mb-3">
-                <button class="btn btn-primary"><i class="bi bi-plus-circle"></i> 新增课程</button>
+                <button class="btn btn-primary" id="btnAddCourse"><i class="bi bi-plus-circle"></i> 新增课程</button>
             </div>
             <table class="table table-hover">
-                <thead class="table-light"><tr><th>ID</th><th>课程名称</th><th>学分</th><th>教师</th><th>限选人数</th><th>已选人数</th><th>操作</th></tr></thead>
-                <tbody id="tableBody">
-                    <tr><td colspan="7" class="text-center text-muted">加载中...</td></tr>
-                </tbody>
+                <thead class="table-light"><tr><th>ID</th><th>课程名称</th><th>学分</th><th>教师ID</th><th>限选人数</th><th>先修课程</th><th>操作</th></tr></thead>
+                <tbody id="courseTableBody"></tbody>
             </table>
+            <nav id="coursePagination"></nav>
         </div></div>
     `;
-    // TODO: 调用 api.collegeAdmin.listCourses()
+    document.getElementById('btnAddCourse').addEventListener('click', showAddCourseForm);
+    refreshCourseTable();
+}
+
+async function refreshCourseTable() {
+    const res = await api.collegeAdmin.listCourses({ page: coursePage, page_size: coursePageSize });
+    const tbody = document.getElementById('courseTableBody');
+    if (!res.success) { tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">加载失败</td></tr>'; return; }
+    const items = res.data.items;
+    if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">暂无数据</td></tr>';
+    } else {
+        tbody.innerHTML = items.map(c => `
+            <tr>
+                <td>${c.id}</td><td>${c.name}</td><td>${c.credits}</td>
+                <td>${c.teacher_id || '-'}</td><td>${c.max_students}</td>
+                <td>${Array.isArray(c.prerequisites) ? c.prerequisites.join(',') : '-'}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary me-1" onclick="showEditCourseForm(${c.id})">编辑</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteCourse(${c.id},'${c.name}')">删除</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+    renderPagination('coursePagination', coursePage, res.data.total, coursePageSize, (p) => { coursePage = p; refreshCourseTable(); });
+}
+
+function showAddCourseForm() {
+    document.getElementById('formModalTitle').textContent = '新增课程';
+    document.getElementById('formModalBody').innerHTML = `
+        <div class="mb-3"><label class="form-label">课程名称</label><input class="form-control" id="f_name"></div>
+        <div class="mb-3"><label class="form-label">课程描述</label><textarea class="form-control" id="f_description"></textarea></div>
+        <div class="mb-3"><label class="form-label">学分</label><input class="form-control" type="number" step="0.5" id="f_credits" value="3"></div>
+        <div class="mb-3"><label class="form-label">教师ID</label><input class="form-control" type="number" id="f_teacher_id" placeholder="可选"></div>
+        <div class="mb-3"><label class="form-label">限选人数</label><input class="form-control" type="number" id="f_max_students" value="30"></div>
+        <div class="mb-3"><label class="form-label">先修课程ID（逗号分隔）</label><input class="form-control" id="f_prerequisites" placeholder="例如: 1,2"></div>
+        <div class="mb-3"><label class="form-label">课程大纲</label><textarea class="form-control" id="f_syllabus"></textarea></div>
+    `;
+    const modal = new bootstrap.Modal(document.getElementById('formModal'));
+    document.getElementById('btnFormSave').onclick = async function() {
+        const prereqStr = document.getElementById('f_prerequisites').value.trim();
+        const prerequisites = prereqStr ? prereqStr.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)) : [];
+        const data = {
+            name: document.getElementById('f_name').value.trim(),
+            description: document.getElementById('f_description').value.trim(),
+            credits: parseFloat(document.getElementById('f_credits').value) || 0,
+            teacher_id: parseInt(document.getElementById('f_teacher_id').value) || null,
+            max_students: parseInt(document.getElementById('f_max_students').value) || 30,
+            prerequisites: prerequisites,
+            syllabus: document.getElementById('f_syllabus').value.trim(),
+        };
+        if (!data.name) { showAlert('课程名称不能为空'); return; }
+        const res = await api.collegeAdmin.createCourse(data);
+        if (res.success) { modal.hide(); refreshCourseTable(); }
+        showAlert(res.message);
+    };
+    modal.show();
+}
+
+async function showEditCourseForm(id) {
+    const resp = await fetch('/api/college-admin/courses?page=1&page_size=100');
+    const listRes = await resp.json();
+    if (!listRes.success) { showAlert('获取课程信息失败'); return; }
+    const c = listRes.data.items.find(item => item.id === id);
+    if (!c) { showAlert('课程不存在'); return; }
+    const prereqStr = Array.isArray(c.prerequisites) ? c.prerequisites.join(',') : '';
+
+    document.getElementById('formModalTitle').textContent = '编辑课程';
+    document.getElementById('formModalBody').innerHTML = `
+        <div class="mb-3"><label class="form-label">课程名称</label><input class="form-control" id="f_name" value="${c.name}"></div>
+        <div class="mb-3"><label class="form-label">课程描述</label><textarea class="form-control" id="f_description">${c.description || ''}</textarea></div>
+        <div class="mb-3"><label class="form-label">学分</label><input class="form-control" type="number" step="0.5" id="f_credits" value="${c.credits}"></div>
+        <div class="mb-3"><label class="form-label">教师ID</label><input class="form-control" type="number" id="f_teacher_id" value="${c.teacher_id || ''}"></div>
+        <div class="mb-3"><label class="form-label">限选人数</label><input class="form-control" type="number" id="f_max_students" value="${c.max_students}"></div>
+        <div class="mb-3"><label class="form-label">先修课程ID（逗号分隔）</label><input class="form-control" id="f_prerequisites" value="${prereqStr}"></div>
+        <div class="mb-3"><label class="form-label">课程大纲</label><textarea class="form-control" id="f_syllabus">${c.syllabus || ''}</textarea></div>
+    `;
+    const modal = new bootstrap.Modal(document.getElementById('formModal'));
+    document.getElementById('btnFormSave').onclick = async function() {
+        const prereqStrVal = document.getElementById('f_prerequisites').value.trim();
+        const prerequisites = prereqStrVal ? prereqStrVal.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)) : [];
+        const data = {
+            name: document.getElementById('f_name').value.trim(),
+            description: document.getElementById('f_description').value.trim(),
+            credits: parseFloat(document.getElementById('f_credits').value) || 0,
+            teacher_id: parseInt(document.getElementById('f_teacher_id').value) || null,
+            max_students: parseInt(document.getElementById('f_max_students').value) || 30,
+            prerequisites: prerequisites,
+            syllabus: document.getElementById('f_syllabus').value.trim(),
+        };
+        const result = await api.collegeAdmin.updateCourse(id, data);
+        if (result.success) { modal.hide(); refreshCourseTable(); }
+        showAlert(result.message);
+    };
+    modal.show();
+}
+
+function confirmDeleteCourse(id, name) {
+    document.getElementById('confirmMessage').textContent = `确定要删除课程"${name}"吗？`;
+    const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    document.getElementById('btnConfirmDelete').onclick = async function() {
+        const res = await api.collegeAdmin.deleteCourse(id);
+        modal.hide();
+        showAlert(res.message);
+        if (res.success) refreshCourseTable();
+    };
+    modal.show();
 }
 
 
 // ============================================================
-// 本学院选课管理（需求3）
+// 选课管理（需求3: 查看本学院学生选课情况）
 // ============================================================
 
-function renderSelectionList(container) {
+let selectionPage = 1, selectionPageSize = 20;
+let selectionCourseFilter = null;
+
+async function loadSelectionList(container) {
     container.innerHTML = `
         <h4 class="mb-3"><i class="bi bi-check2-square"></i> 本学院选课管理</h4>
         <div class="card"><div class="card-body">
+            <div class="row g-2 mb-3">
+                <div class="col-md-3">
+                    <select class="form-select" id="selectionCourseFilter">
+                        <option value="">全部课程</option>
+                    </select>
+                </div>
+                <div class="col-md-auto">
+                    <button class="btn btn-outline-secondary" id="btnSearchSelection"><i class="bi bi-search"></i> 查询</button>
+                </div>
+            </div>
             <table class="table table-hover">
                 <thead class="table-light">
                     <tr><th>ID</th><th>学生</th><th>课程</th><th>状态</th><th>选课时间</th></tr>
                 </thead>
-                <tbody id="tableBody">
-                    <tr><td colspan="5" class="text-center text-muted">加载中...</td></tr>
-                </tbody>
+                <tbody id="selectionTableBody"></tbody>
             </table>
+            <nav id="selectionPagination"></nav>
         </div></div>
     `;
-    // TODO: 调用 api.collegeAdmin.listSelections()
+
+    // 加载课程列表到下拉框
+    const cRes = await api.collegeAdmin.listCourses({ page: 1, page_size: 100 });
+    if (cRes.success) {
+        const sel = document.getElementById('selectionCourseFilter');
+        cRes.data.items.forEach(c => { sel.innerHTML += `<option value="${c.id}">${c.name}</option>`; });
+    }
+
+    document.getElementById('btnSearchSelection').addEventListener('click', () => {
+        selectionCourseFilter = document.getElementById('selectionCourseFilter').value || null;
+        selectionPage = 1;
+        refreshSelectionTable();
+    });
+    refreshSelectionTable();
+}
+
+async function refreshSelectionTable() {
+    const params = { page: selectionPage, page_size: selectionPageSize };
+    if (selectionCourseFilter) params.course_id = selectionCourseFilter;
+    const res = await api.collegeAdmin.listSelections(params);
+    const tbody = document.getElementById('selectionTableBody');
+    if (!res.success) { tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">加载失败</td></tr>'; return; }
+    const items = res.data.items;
+    if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">暂无数据</td></tr>';
+    } else {
+        const statusMap = { pending: '待抽签', confirmed: '已中签', cancelled: '已取消' };
+        tbody.innerHTML = items.map(s => `
+            <tr>
+                <td>${s.id}</td><td>${s.student_name}(${s.student_username})</td>
+                <td>${s.course_name}</td>
+                <td><span class="badge bg-${s.status === 'confirmed' ? 'success' : s.status === 'cancelled' ? 'danger' : 'warning'}">${statusMap[s.status] || s.status}</span></td>
+                <td>${s.selected_at || '-'}</td>
+            </tr>
+        `).join('');
+    }
+    renderPagination('selectionPagination', selectionPage, res.data.total, selectionPageSize, (p) => { selectionPage = p; refreshSelectionTable(); });
 }
 
 
@@ -236,19 +656,17 @@ function renderSelectionList(container) {
 // 抽签管理（需求4: 对选择课程的学生进行抽签，并按课程生成中签学生名单）
 // ============================================================
 
-function renderLotteryPage(container) {
+async function loadLotteryPage(container) {
     container.innerHTML = `
         <h4 class="mb-3"><i class="bi bi-shuffle"></i> 抽签管理</h4>
         <div class="card">
             <div class="card-body">
                 <h5>选择课程进行抽签</h5>
                 <p class="text-muted">系统将从待抽签的学生中随机选出中签者（不超过课程限选人数）</p>
-                <!-- 课程选择 -->
                 <div class="row g-2 mb-3">
                     <div class="col-md-4">
                         <select class="form-select" id="lotteryCourseSelect">
                             <option value="">-- 请选择课程 --</option>
-                            <!-- TODO: 加载本学院课程列表 -->
                         </select>
                     </div>
                     <div class="col-md-2">
@@ -260,58 +678,124 @@ function renderLotteryPage(container) {
                         </button>
                     </div>
                 </div>
-                <!-- 中签结果 -->
-                <div id="lotteryResult" class="mt-3">
+                <div id="lotteryMessage" class="mb-2"></div>
+                <div id="lotteryResult" class="mt-3" style="display:none;">
                     <h6>中签学生名单</h6>
                     <div class="mb-2">
                         <button class="btn btn-outline-success btn-sm" id="btnExportLottery">
                             <i class="bi bi-download"></i> 导出中签名单
                         </button>
                     </div>
-                    <table class="table table-sm" id="lotteryResultTable">
-                        <thead class="table-light"><tr><th>学号</th><th>姓名</th><th>邮箱</th><th>状态</th></tr></thead>
-                        <tbody id="lotteryResultBody">
-                            <tr><td colspan="4" class="text-center text-muted">请先选择课程并点击"开始抽签"</td></tr>
-                        </tbody>
+                    <table class="table table-sm">
+                        <thead class="table-light"><tr><th>学号</th><th>姓名</th><th>邮箱</th><th>电话</th><th>状态</th></tr></thead>
+                        <tbody id="lotteryResultBody"></tbody>
                     </table>
                 </div>
             </div>
         </div>
     `;
 
-    // TODO: 加载本学院课程到下拉框
-    // TODO: 抽签按钮事件：
-    //   1. 获取选中的 course_id 和 max_students
-    //   2. 调用 api.collegeAdmin.lottery(courseId, { max_students })
-    //   3. 显示结果（中签/未中签）
-    // TODO: 导出按钮事件：调用 api.collegeAdmin.exportLotteryResult(courseId)
+    // 加载本学院课程到下拉框
+    const cRes = await api.collegeAdmin.listCourses({ page: 1, page_size: 100 });
+    if (cRes.success) {
+        const sel = document.getElementById('lotteryCourseSelect');
+        cRes.data.items.forEach(c => {
+            sel.innerHTML += `<option value="${c.id}">${c.name} (限选${c.max_students}人)</option>`;
+        });
+    }
+
+    // 选择课程后自动显示已有中签结果
+    document.getElementById('lotteryCourseSelect').addEventListener('change', async function() {
+        const courseId = parseInt(this.value);
+        if (!courseId) {
+            document.getElementById('lotteryResult').style.display = 'none';
+            return;
+        }
+        await showLotteryResult(courseId);
+    });
+
+    document.getElementById('btnLottery').addEventListener('click', async function() {
+        const courseId = parseInt(document.getElementById('lotteryCourseSelect').value);
+        if (!courseId) { showAlert('请先选择课程'); return; }
+        const maxStudentsVal = document.getElementById('lotteryMaxStudents').value.trim();
+        const data = maxStudentsVal ? { max_students: parseInt(maxStudentsVal) } : {};
+        const res = await api.collegeAdmin.lottery(courseId, data);
+        const msgDiv = document.getElementById('lotteryMessage');
+        if (res.success) {
+            msgDiv.innerHTML = `<div class="alert alert-success">抽签完成！中签${res.data.length}人</div>`;
+            await showLotteryResult(courseId);
+        } else {
+            msgDiv.innerHTML = `<div class="alert alert-danger">${res.message}</div>`;
+        }
+    });
+
+    document.getElementById('btnExportLottery').addEventListener('click', async function() {
+        const courseId = parseInt(document.getElementById('lotteryCourseSelect').value);
+        if (!courseId) return;
+        const res = await api.collegeAdmin.exportLotteryResult(courseId);
+        if (res.success) {
+            showAlert('导出功能：数据已获取，可生成CSV下载');
+        }
+    });
+}
+
+async function showLotteryResult(courseId) {
+    const res = await api.collegeAdmin.getLotteryResult(courseId);
+    const resultDiv = document.getElementById('lotteryResult');
+    const tbody = document.getElementById('lotteryResultBody');
+    if (!res.success || !res.data || res.data.length === 0) {
+        resultDiv.style.display = 'block';
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">暂无中签学生</td></tr>';
+        return;
+    }
+    resultDiv.style.display = 'block';
+    tbody.innerHTML = res.data.map(s => `
+        <tr>
+            <td>${s.username}</td><td>${s.name}</td>
+            <td>${s.email || '-'}</td><td>${s.phone || '-'}</td>
+            <td><span class="badge bg-success">已中签</span></td>
+        </tr>
+    `).join('');
 }
 
 
 // ============================================================
-// 本学院成绩管理（需求3）
+// 成绩管理（需求3: 查看本学院课程成绩）
 // ============================================================
 
-function renderGradeList(container) {
+let gradePage = 1, gradePageSize = 20;
+
+async function loadGradeList(container) {
     container.innerHTML = `
         <h4 class="mb-3"><i class="bi bi-bar-chart"></i> 本学院成绩管理</h4>
         <div class="card"><div class="card-body">
-            <div class="mb-3">
-                <select class="form-select" style="width:200px;display:inline;">
-                    <option value="">全部课程</option>
-                    <!-- TODO: 加载本学院课程 -->
-                </select>
-                <button class="btn btn-outline-secondary ms-2"><i class="bi bi-search"></i> 查询</button>
-            </div>
             <table class="table table-hover">
-                <thead class="table-light"><tr><th>ID</th><th>学生</th><th>课程</th><th>分数</th><th>绩点</th><th>操作</th></tr></thead>
-                <tbody id="tableBody">
-                    <tr><td colspan="6" class="text-center text-muted">加载中...</td></tr>
-                </tbody>
+                <thead class="table-light"><tr><th>ID</th><th>学生</th><th>课程</th><th>分数</th><th>绩点</th></tr></thead>
+                <tbody id="gradeTableBody"></tbody>
             </table>
+            <nav id="gradePagination"></nav>
         </div></div>
     `;
-    // TODO: 调用 api.collegeAdmin.listGrades()
+    refreshGradeTable();
+}
+
+async function refreshGradeTable() {
+    const res = await api.collegeAdmin.listGrades({ page: gradePage, page_size: gradePageSize });
+    const tbody = document.getElementById('gradeTableBody');
+    if (!res.success) { tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">加载失败</td></tr>'; return; }
+    const items = res.data.items;
+    if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">暂无数据</td></tr>';
+    } else {
+        tbody.innerHTML = items.map(g => `
+            <tr>
+                <td>${g.id}</td><td>${g.student_name}</td><td>${g.course_name}</td>
+                <td>${g.score != null ? g.score : '-'}</td>
+                <td>${g.grade_point != null ? g.grade_point.toFixed(1) : '-'}</td>
+            </tr>
+        `).join('');
+    }
+    renderPagination('gradePagination', gradePage, res.data.total, gradePageSize, (p) => { gradePage = p; refreshGradeTable(); });
 }
 </script>
 </body>

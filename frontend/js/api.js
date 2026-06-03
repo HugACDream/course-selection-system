@@ -22,10 +22,6 @@ const api = {
         try {
             const resp = await fetch(API_BASE + url, options);
             const json = await resp.json();
-            if (!json.success && resp.status === 403) {
-                // 无权限，跳转到登录页
-                window.location.href = '/';
-            }
             return json;
         } catch (err) {
             console.error('API请求失败:', err);

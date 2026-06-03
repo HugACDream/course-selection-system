@@ -1,6 +1,7 @@
 """
 消息模型
 """
+from database import get_db
 
 
 class Message:
@@ -44,23 +45,54 @@ class Message:
 
     @staticmethod
     def find_by_id(message_id):
-        """根据ID查找消息"""
-        # TODO: SELECT * FROM messages WHERE id = ?
-        pass
+        db = get_db()
+        row = db.execute('SELECT * FROM messages WHERE id = ?', (message_id,)).fetchone()
+        if row:
+            return Message(row)
+        return None
+
 
     @staticmethod
     def find_received(user_id, page=1, page_size=20):
-        """查询某用户收到的消息列表"""
-        # TODO: SELECT m.*, u.name as sender_name FROM messages m
-        #       JOIN users u ON m.sender_id = u.id WHERE m.receiver_id = ? ORDER BY m.created_at DESC
-        pass
+        db = get_db()
+        count_row = db.execute(
+            'SELECT COUNT(*) as cnt FROM messages WHERE receiver_id = ?',
+            (user_id,)
+        ).fetchone()
+        total = count_row['cnt']
+
+        offset = (page - 1) * page_size
+        rows = db.execute(
+            'SELECT m.*, u.name as sender_name FROM messages m '
+            'JOIN users u ON m.sender_id = u.id '
+            'WHERE m.receiver_id = ? ORDER BY m.created_at DESC LIMIT ? OFFSET ?',
+            (user_id, page_size, offset)
+        ).fetchall()
+
+        items = [dict(r) for r in rows]
+        return items, total
+
 
     @staticmethod
     def find_sent(user_id, page=1, page_size=20):
-        """查询某用户发送的消息列表"""
-        # TODO: SELECT m.*, u.name as receiver_name FROM messages m
-        #       JOIN users u ON m.receiver_id = u.id WHERE m.sender_id = ? ORDER BY m.created_at DESC
-        pass
+        db = get_db()
+        count_row = db.execute(
+            'SELECT COUNT(*) as cnt FROM messages WHERE sender_id = ?',
+            (user_id,)
+        ).fetchone()
+        total = count_row['cnt']
+
+        offset = (page - 1) * page_size
+        rows = db.execute(
+            'SELECT m.*, u.name as receiver_name FROM messages m '
+            'JOIN users u ON m.receiver_id = u.id '
+            'WHERE m.sender_id = ? ORDER BY m.created_at DESC LIMIT ? OFFSET ?',
+            (user_id, page_size, offset)
+        ).fetchall()
+
+        items = [dict(r) for r in rows]
+        return items, total
+
 
     @staticmethod
     def find_conversation(user1_id, user2_id, course_id=None):
@@ -72,16 +104,29 @@ class Message:
 
     @staticmethod
     def get_unread_count(user_id):
-        """获取未读消息数"""
-        # TODO: SELECT COUNT(*) FROM messages WHERE receiver_id = ? AND is_read = 0
-        pass
+        db = get_db()
+        row = db.execute(
+            'SELECT COUNT(*) as cnt FROM messages WHERE receiver_id = ? AND is_read = 0',
+            (user_id,)
+        ).fetchone()
+        return row['cnt']
+
 
     def save(self):
-        """发送新消息"""
-        # TODO: INSERT INTO messages (sender_id, receiver_id, course_id, content, reply_to) VALUES (?, ?, ?, ?, ?)
-        pass
+        db = get_db()
+        cursor = db.execute(
+            'INSERT INTO messages (sender_id, receiver_id, course_id, content, reply_to) '
+            'VALUES (?, ?, ?, ?, ?)',
+            (self.sender_id, self.receiver_id, self.course_id, self.content, self.reply_to)
+        )
+        db.commit()
+        self.id = cursor.lastrowid
+        return self
+
 
     def mark_read(self):
-        """标记为已读"""
-        # TODO: UPDATE messages SET is_read = 1 WHERE id = ?
-        pass
+        db = get_db()
+        db.execute('UPDATE messages SET is_read = 1 WHERE id = ?', (self.id,))
+        db.commit()
+        self.is_read = 1
+

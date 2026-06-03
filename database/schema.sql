@@ -84,6 +84,21 @@ CREATE TABLE IF NOT EXISTS messages (
     FOREIGN KEY (reply_to) REFERENCES messages(id)
 );
 
+-- 插入默认学院
+INSERT OR IGNORE INTO colleges (id, name, description) VALUES (1, '计算机学院', '计算机科学与技术学院');
+
 -- 插入默认系统管理员账号
 INSERT OR IGNORE INTO users (username, password, role, name)
 VALUES ('admin', 'admin123', 'admin', '系统管理员');
+
+-- 插入默认学院管理员账号（属于计算机学院）
+INSERT OR IGNORE INTO users (username, password, role, name, college_id)
+VALUES ('college_admin', 'admin123', 'college_admin', '学院管理员', 1);
+
+-- 插入默认教师账号（属于计算机学院）
+INSERT OR IGNORE INTO users (username, password, role, name, college_id)
+VALUES ('teacher1', 'admin123', 'teacher', '张教授', 1);
+
+-- 插入默认学生账号（属于计算机学院）
+INSERT OR IGNORE INTO users (username, password, role, name, college_id)
+VALUES ('student1', 'admin123', 'student', '李同学', 1);

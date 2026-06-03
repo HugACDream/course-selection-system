@@ -5,6 +5,11 @@
 """
 
 from flask import Blueprint, request, jsonify, session
+from database import get_db
+from models.user import User
+from models.course import Course
+from models.grade import Grade
+from models.selection import CourseSelection
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -24,46 +29,115 @@ def admin_required():
 
 @admin_bp.route('/students', methods=['GET'])
 def list_students():
-    """查询学生列表（支持分页和按学院筛选）"""
-    # TODO: 校验管理员权限 admin_required()
-    # TODO: 获取查询参数: page, page_size, college_id, keyword
-    # TODO: 调用 User.find_all(role='student', ...) 查询学生列表
-    # TODO: 返回分页数据 { success, data: { items, total, page, page_size } }
-    return jsonify({'success': False, 'message': 'TODO: 查询学生列表待实现'})
+    # 校验管理员权限
+    err = admin_required()
+    if err:
+        return err
+
+    page = request.args.get('page', 1, type=int)
+    page_size = request.args.get('page_size', 20, type=int)
+    college_id = request.args.get('college_id', None, type=int)
+    keyword = request.args.get('keyword', '').strip()
+
+    users, total = User.find_all(role='student', college_id=college_id,
+                                  page=page, page_size=page_size)
+
+    # TODO: 后续在 find_all 中加入 keyword 搜索支持
+    user_list = [u.to_dict() for u in users]
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'items': user_list,
+            'total': total,
+            'page': page,
+            'page_size': page_size,
+        }
+    })
+
 
 
 @admin_bp.route('/students', methods=['POST'])
 def create_student():
-    """新增学生"""
-    # TODO: 校验管理员权限
-    # TODO: 获取请求体: { username, password, name, college_id, email, phone }
-    # TODO: 创建 User 对象，设置 role='student'，调用 save()
-    # TODO: 返回创建结果
-    return jsonify({'success': False, 'message': 'TODO: 新增学生待实现'})
+    err = admin_required()
+    if err:
+        return err
+
+    data = request.get_json()
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    name = data.get('name', '').strip()
+
+    if not username or not password or not name:
+        return jsonify({'success': False, 'message': '学号、密码和姓名不能为空'})
+
+    # 检查用户名是否已存在
+    existing = User.find_by_username(username)
+    if existing:
+        return jsonify({'success': False, 'message': '该用户名已存在'})
+
+    user = User()
+    user.username = username
+    user.password = password
+    user.role = 'student'
+    user.name = name
+    user.college_id = data.get('college_id')
+    user.email = data.get('email', '').strip()
+    user.phone = data.get('phone', '').strip()
+    user.save()
+
+    return jsonify({'success': True, 'message': '新增学生成功', 'user': user.to_dict()})
+
 
 
 @admin_bp.route('/students/<int:student_id>', methods=['GET'])
 def get_student(student_id):
-    """查询单个学生详情"""
-    # TODO: 校验管理员权限
-    # TODO: 调用 User.find_by_id(student_id) 查询
-    return jsonify({'success': False, 'message': 'TODO: 查询学生详情待实现'})
+    err = admin_required()
+    if err:
+        return err
+
+    user = User.find_by_id(student_id)
+    if not user or user.role != 'student':
+        return jsonify({'success': False, 'message': '学生不存在'})
+
+    return jsonify({'success': True, 'user': user.to_dict()})
+
 
 
 @admin_bp.route('/students/<int:student_id>', methods=['PUT'])
 def update_student(student_id):
-    """修改学生信息"""
-    # TODO: 校验管理员权限
-    # TODO: 查找学生，更新字段，调用 update()
-    return jsonify({'success': False, 'message': 'TODO: 修改学生信息待实现'})
+    err = admin_required()
+    if err:
+        return err
+
+    user = User.find_by_id(student_id)
+    if not user or user.role != 'student':
+        return jsonify({'success': False, 'message': '学生不存在'})
+
+    data = request.get_json()
+    user.name = data.get('name', user.name)
+    user.college_id = data.get('college_id', user.college_id)
+    user.email = data.get('email', user.email)
+    user.phone = data.get('phone', user.phone)
+    user.update()
+
+    return jsonify({'success': True, 'message': '修改成功', 'user': user.to_dict()})
+
 
 
 @admin_bp.route('/students/<int:student_id>', methods=['DELETE'])
 def delete_student(student_id):
-    """删除学生"""
-    # TODO: 校验管理员权限
-    # TODO: 查找学生，调用 delete()
-    return jsonify({'success': False, 'message': 'TODO: 删除学生待实现'})
+    err = admin_required()
+    if err:
+        return err
+
+    user = User.find_by_id(student_id)
+    if not user or user.role != 'student':
+        return jsonify({'success': False, 'message': '学生不存在'})
+
+    user.delete()
+    return jsonify({'success': True, 'message': '删除成功'})
+
 
 
 # ============================================================
@@ -72,39 +146,106 @@ def delete_student(student_id):
 
 @admin_bp.route('/teachers', methods=['GET'])
 def list_teachers():
-    """查询教师列表"""
-    # TODO: 校验管理员权限
-    # TODO: 调用 User.find_all(role='teacher', ...) 查询教师列表
-    return jsonify({'success': False, 'message': 'TODO: 查询教师列表待实现'})
+    err = admin_required()
+    if err:
+        return err
+
+    page = request.args.get('page', 1, type=int)
+    page_size = request.args.get('page_size', 20, type=int)
+    college_id = request.args.get('college_id', None, type=int)
+
+    users, total = User.find_all(role='teacher', college_id=college_id,
+                                  page=page, page_size=page_size)
+    user_list = [u.to_dict() for u in users]
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'items': user_list,
+            'total': total,
+            'page': page,
+            'page_size': page_size,
+        }
+    })
 
 
 @admin_bp.route('/teachers', methods=['POST'])
 def create_teacher():
-    """新增教师"""
-    # TODO: 校验管理员权限
-    # TODO: 创建 User 对象，role='teacher'，调用 save()
-    return jsonify({'success': False, 'message': 'TODO: 新增教师待实现'})
+    err = admin_required()
+    if err:
+        return err
+
+    data = request.get_json()
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    name = data.get('name', '').strip()
+
+    if not username or not password or not name:
+        return jsonify({'success': False, 'message': '工号、密码和姓名不能为空'})
+
+    existing = User.find_by_username(username)
+    if existing:
+        return jsonify({'success': False, 'message': '该用户名已存在'})
+
+    user = User()
+    user.username = username
+    user.password = password
+    user.role = 'teacher'
+    user.name = name
+    user.college_id = data.get('college_id')
+    user.email = data.get('email', '').strip()
+    user.phone = data.get('phone', '').strip()
+    user.save()
+
+    return jsonify({'success': True, 'message': '新增教师成功', 'user': user.to_dict()})
 
 
 @admin_bp.route('/teachers/<int:teacher_id>', methods=['GET'])
 def get_teacher(teacher_id):
-    """查询单个教师详情"""
-    # TODO: 校验管理员权限
-    return jsonify({'success': False, 'message': 'TODO: 查询教师详情待实现'})
+    err = admin_required()
+    if err:
+        return err
+
+    user = User.find_by_id(teacher_id)
+    if not user or user.role != 'teacher':
+        return jsonify({'success': False, 'message': '教师不存在'})
+
+    return jsonify({'success': True, 'user': user.to_dict()})
 
 
 @admin_bp.route('/teachers/<int:teacher_id>', methods=['PUT'])
 def update_teacher(teacher_id):
-    """修改教师信息"""
-    # TODO: 校验管理员权限
-    return jsonify({'success': False, 'message': 'TODO: 修改教师信息待实现'})
+    err = admin_required()
+    if err:
+        return err
+
+    user = User.find_by_id(teacher_id)
+    if not user or user.role != 'teacher':
+        return jsonify({'success': False, 'message': '教师不存在'})
+
+    data = request.get_json()
+    user.name = data.get('name', user.name)
+    user.college_id = data.get('college_id', user.college_id)
+    user.email = data.get('email', user.email)
+    user.phone = data.get('phone', user.phone)
+    user.update()
+
+    return jsonify({'success': True, 'message': '修改成功', 'user': user.to_dict()})
 
 
 @admin_bp.route('/teachers/<int:teacher_id>', methods=['DELETE'])
 def delete_teacher(teacher_id):
-    """删除教师"""
-    # TODO: 校验管理员权限
-    return jsonify({'success': False, 'message': 'TODO: 删除教师待实现'})
+    err = admin_required()
+    if err:
+        return err
+
+    user = User.find_by_id(teacher_id)
+    if not user or user.role != 'teacher':
+        return jsonify({'success': False, 'message': '教师不存在'})
+
+    user.delete()
+    return jsonify({'success': True, 'message': '删除成功'})
+
 
 
 # ============================================================
@@ -113,40 +254,101 @@ def delete_teacher(teacher_id):
 
 @admin_bp.route('/courses', methods=['GET'])
 def list_courses():
-    """查询所有课程列表"""
-    # TODO: 校验管理员权限
-    # TODO: 调用 Course.find_all() 查询课程列表
-    return jsonify({'success': False, 'message': 'TODO: 查询课程列表待实现'})
+    err = admin_required()
+    if err:
+        return err
 
+    page = request.args.get('page', 1, type=int)
+    page_size = request.args.get('page_size', 20, type=int)
+    college_id = request.args.get('college_id', None, type=int)
+    teacher_id = request.args.get('teacher_id', None, type=int)
+
+    courses, total = Course.find_all(college_id=college_id, teacher_id=teacher_id,
+                                      page=page, page_size=page_size)
+    course_list = [c.to_dict() for c in courses]
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'items': course_list,
+            'total': total,
+            'page': page,
+            'page_size': page_size,
+        }
+    })
 
 @admin_bp.route('/courses', methods=['POST'])
 def create_course():
-    """新增课程"""
-    # TODO: 校验管理员权限
-    # TODO: 获取请求体，创建 Course 对象，调用 save()
-    return jsonify({'success': False, 'message': 'TODO: 新增课程待实现'})
+    err = admin_required()
+    if err:
+        return err
 
+    data = request.get_json()
+    name = data.get('name', '').strip()
+
+    if not name:
+        return jsonify({'success': False, 'message': '课程名称不能为空'})
+
+    course = Course()
+    course.name = name
+    course.description = data.get('description', '').strip()
+    course.credits = data.get('credits', 0.0)
+    course.teacher_id = data.get('teacher_id')
+    course.college_id = data.get('college_id')
+    course.max_students = data.get('max_students', 30)
+    course.prerequisites = data.get('prerequisites', [])
+    course.syllabus = data.get('syllabus', '').strip()
+    course.save()
+
+    return jsonify({'success': True, 'message': '新增课程成功', 'course': course.to_dict()})
 
 @admin_bp.route('/courses/<int:course_id>', methods=['GET'])
 def get_course(course_id):
-    """查询单个课程详情"""
-    # TODO: 校验管理员权限
-    return jsonify({'success': False, 'message': 'TODO: 查询课程详情待实现'})
+    err = admin_required()
+    if err:
+        return err
 
+    course = Course.find_by_id(course_id)
+    if not course:
+        return jsonify({'success': False, 'message': '课程不存在'})
+
+    return jsonify({'success': True, 'course': course.to_dict()})
 
 @admin_bp.route('/courses/<int:course_id>', methods=['PUT'])
 def update_course(course_id):
-    """修改课程信息"""
-    # TODO: 校验管理员权限
-    return jsonify({'success': False, 'message': 'TODO: 修改课程信息待实现'})
+    err = admin_required()
+    if err:
+        return err
 
+    course = Course.find_by_id(course_id)
+    if not course:
+        return jsonify({'success': False, 'message': '课程不存在'})
+
+    data = request.get_json()
+    course.name = data.get('name', course.name)
+    course.description = data.get('description', course.description)
+    course.credits = data.get('credits', course.credits)
+    course.teacher_id = data.get('teacher_id', course.teacher_id)
+    course.college_id = data.get('college_id', course.college_id)
+    course.max_students = data.get('max_students', course.max_students)
+    course.prerequisites = data.get('prerequisites', course.prerequisites)
+    course.syllabus = data.get('syllabus', course.syllabus)
+    course.update()
+
+    return jsonify({'success': True, 'message': '修改成功', 'course': course.to_dict()})
 
 @admin_bp.route('/courses/<int:course_id>', methods=['DELETE'])
 def delete_course(course_id):
-    """删除课程"""
-    # TODO: 校验管理员权限
-    return jsonify({'success': False, 'message': 'TODO: 删除课程待实现'})
+    err = admin_required()
+    if err:
+        return err
 
+    course = Course.find_by_id(course_id)
+    if not course:
+        return jsonify({'success': False, 'message': '课程不存在'})
+
+    course.delete()
+    return jsonify({'success': True, 'message': '删除成功'})
 
 # ============================================================
 # 成绩管理 CRUD（需求1: 对课程成绩增删改查）
@@ -154,32 +356,102 @@ def delete_course(course_id):
 
 @admin_bp.route('/grades', methods=['GET'])
 def list_grades():
-    """查询所有成绩记录"""
-    # TODO: 校验管理员权限
-    # TODO: 支持按学生、课程筛选，分页返回
-    return jsonify({'success': False, 'message': 'TODO: 查询成绩列表待实现'})
+    err = admin_required()
+    if err:
+        return err
+
+    db = get_db()
+    course_id = request.args.get('course_id', None, type=int)
+    student_id = request.args.get('student_id', None, type=int)
+    page = request.args.get('page', 1, type=int)
+    page_size = request.args.get('page_size', 20, type=int)
+
+    conditions = []
+    params = []
+    if course_id:
+        conditions.append('g.course_id = ?')
+        params.append(course_id)
+    if student_id:
+        conditions.append('g.student_id = ?')
+        params.append(student_id)
+
+    where_clause = ' WHERE ' + ' AND '.join(conditions) if conditions else ''
+
+    count_row = db.execute(
+        f'SELECT COUNT(*) as cnt FROM grades g{where_clause}', params
+    ).fetchone()
+    total = count_row['cnt']
+
+    offset = (page - 1) * page_size
+    rows = db.execute(
+        f'SELECT g.*, u.name as student_name, c.name as course_name '
+        f'FROM grades g JOIN users u ON g.student_id = u.id '
+        f'JOIN courses c ON g.course_id = c.id '
+        f'{where_clause} LIMIT ? OFFSET ?',
+        params + [page_size, offset]
+    ).fetchall()
+
+    items = [dict(r) for r in rows]
+    return jsonify({
+        'success': True,
+        'data': {'items': items, 'total': total, 'page': page, 'page_size': page_size}
+    })
 
 
 @admin_bp.route('/grades', methods=['POST'])
 def create_grade():
-    """新增/修改成绩"""
-    # TODO: 校验管理员权限
-    # TODO: 创建或更新成绩记录
-    return jsonify({'success': False, 'message': 'TODO: 新增成绩待实现'})
+    err = admin_required()
+    if err:
+        return err
+
+    data = request.get_json()
+    student_id = data.get('student_id')
+    course_id = data.get('course_id')
+    score = data.get('score')
+
+    if not student_id or not course_id:
+        return jsonify({'success': False, 'message': '学生ID和课程ID不能为空'})
+
+    grade = Grade()
+    grade.student_id = student_id
+    grade.course_id = course_id
+    grade.score = score
+    grade.grade_point = None  # TODO: 后续根据 score 自动计算绩点
+    grade.recorded_by = session['user']['id']
+    grade.save()
+
+    return jsonify({'success': True, 'message': '成绩录入成功', 'grade': grade.to_dict()})
 
 
 @admin_bp.route('/grades/<int:grade_id>', methods=['PUT'])
 def update_grade(grade_id):
-    """修改成绩"""
-    # TODO: 校验管理员权限
-    return jsonify({'success': False, 'message': 'TODO: 修改成绩待实现'})
+    err = admin_required()
+    if err:
+        return err
+
+    grade = Grade.find_by_id(grade_id)
+    if not grade:
+        return jsonify({'success': False, 'message': '成绩记录不存在'})
+
+    data = request.get_json()
+    grade.score = data.get('score', grade.score)
+    grade.save()
+
+    return jsonify({'success': True, 'message': '修改成功', 'grade': grade.to_dict()})
 
 
 @admin_bp.route('/grades/<int:grade_id>', methods=['DELETE'])
 def delete_grade(grade_id):
-    """删除成绩"""
-    # TODO: 校验管理员权限
-    return jsonify({'success': False, 'message': 'TODO: 删除成绩待实现'})
+    err = admin_required()
+    if err:
+        return err
+
+    grade = Grade.find_by_id(grade_id)
+    if not grade:
+        return jsonify({'success': False, 'message': '成绩记录不存在'})
+
+    grade.delete()
+    return jsonify({'success': True, 'message': '删除成功'})
 
 
 # ============================================================
@@ -188,16 +460,44 @@ def delete_grade(grade_id):
 
 @admin_bp.route('/colleges', methods=['GET'])
 def list_colleges():
-    """查询学院列表"""
-    # TODO: SELECT * FROM colleges
-    return jsonify({'success': False, 'message': 'TODO: 查询学院列表待实现'})
+    err = admin_required()
+    if err:
+        return err
+
+    db = get_db()
+    rows = db.execute('SELECT * FROM colleges ORDER BY id').fetchall()
+    colleges = [{'id': r['id'], 'name': r['name'], 'description': r['description']} for r in rows]
+
+    return jsonify({'success': True, 'data': colleges})
 
 
 @admin_bp.route('/colleges', methods=['POST'])
 def create_college():
-    """新增学院"""
-    # TODO: INSERT INTO colleges (name, description) VALUES (?, ?)
-    return jsonify({'success': False, 'message': 'TODO: 新增学院待实现'})
+    err = admin_required()
+    if err:
+        return err
+
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    description = data.get('description', '').strip()
+
+    if not name:
+        return jsonify({'success': False, 'message': '学院名称不能为空'})
+
+    db = get_db()
+    try:
+        cursor = db.execute(
+            'INSERT INTO colleges (name, description) VALUES (?, ?)',
+            (name, description)
+        )
+        db.commit()
+        return jsonify({
+            'success': True,
+            'message': '新增学院成功',
+            'college': {'id': cursor.lastrowid, 'name': name, 'description': description}
+        })
+    except:
+        return jsonify({'success': False, 'message': '学院名称已存在'})
 
 
 # ============================================================
@@ -206,12 +506,12 @@ def create_college():
 
 @admin_bp.route('/statistics/course-selection', methods=['GET'])
 def course_selection_statistics():
-    """
-    获取每门课的选课人数统计（用于柱状图）
-    返回: { success, data: [ { course_id, course_name, count }, ... ] }
-    """
-    # TODO: 调用 Course.get_selection_statistics() 获取统计数据
-    return jsonify({'success': False, 'message': 'TODO: 选课统计待实现'})
+    err = admin_required()
+    if err:
+        return err
+
+    stats = Course.get_selection_statistics()
+    return jsonify({'success': True, 'data': stats})
 
 
 @admin_bp.route('/statistics/course-selection/export', methods=['GET'])
