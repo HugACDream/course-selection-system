@@ -4,14 +4,14 @@
 
 -- 学院表
 CREATE TABLE IF NOT EXISTS colleges (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
     description TEXT DEFAULT ''
 );
 
 -- 用户表（包含系统管理员、学院管理员、教师、学生）
 CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'college_admin', 'teacher', 'student')),
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- 课程表
 CREATE TABLE IF NOT EXISTS courses (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     description TEXT DEFAULT '',
     credits REAL NOT NULL DEFAULT 0,
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS courses (
 
 -- 选课记录表
 CREATE TABLE IF NOT EXISTS course_selections (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY,
     student_id INTEGER NOT NULL,
     course_id INTEGER NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'cancelled')),
@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS course_selections (
 
 -- 成绩表
 CREATE TABLE IF NOT EXISTS grades (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY,
     student_id INTEGER NOT NULL,
     course_id INTEGER NOT NULL,
     score REAL,
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS grades (
 
 -- 消息表
 CREATE TABLE IF NOT EXISTS messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY,
     sender_id INTEGER NOT NULL,
     receiver_id INTEGER NOT NULL,
     course_id INTEGER,
@@ -84,21 +84,21 @@ CREATE TABLE IF NOT EXISTS messages (
     FOREIGN KEY (reply_to) REFERENCES messages(id)
 );
 
--- 插入默认学院
-INSERT OR IGNORE INTO colleges (id, name, description) VALUES (1, '计算机学院', '计算机科学与技术学院');
+-- 插入默认学院（不指定id，让自增自动分配）
+INSERT OR IGNORE INTO colleges (name, description) VALUES ('计算机学院', '计算机科学与技术学院');
 
 -- 插入默认系统管理员账号
 INSERT OR IGNORE INTO users (username, password, role, name)
 VALUES ('admin', 'admin123', 'admin', '系统管理员');
 
--- 插入默认学院管理员账号（属于计算机学院）
+-- 插入默认学院管理员账号（用子查询获取学院id）
 INSERT OR IGNORE INTO users (username, password, role, name, college_id)
-VALUES ('college_admin', 'admin123', 'college_admin', '学院管理员', 1);
+SELECT 'college_admin', 'admin123', 'college_admin', '学院管理员', id FROM colleges WHERE name='计算机学院';
 
--- 插入默认教师账号（属于计算机学院）
+-- 插入默认教师账号
 INSERT OR IGNORE INTO users (username, password, role, name, college_id)
-VALUES ('teacher1', 'admin123', 'teacher', '张教授', 1);
+SELECT 'teacher1', 'admin123', 'teacher', '张教授', id FROM colleges WHERE name='计算机学院';
 
--- 插入默认学生账号（属于计算机学院）
+-- 插入默认学生账号
 INSERT OR IGNORE INTO users (username, password, role, name, college_id)
-VALUES ('student1', 'admin123', 'student', '李同学', 1);
+SELECT 'student1', 'admin123', 'student', '李同学', id FROM colleges WHERE name='计算机学院';

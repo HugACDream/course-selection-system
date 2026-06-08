@@ -7,8 +7,9 @@ def get_db():
         db_path = os.path.join(
             os.path.dirname(__file__), '..', 'database', 'course_selection.db'
         )
-        g.db = sqlite3.connect(db_path)
+        g.db = sqlite3.connect(db_path, timeout=10)
         g.db.row_factory = sqlite3.Row
+        g.db.execute("PRAGMA journal_mode=WAL")
         g.db.execute("PRAGMA foreign_keys = ON")
     return g.db
 

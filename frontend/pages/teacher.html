@@ -53,7 +53,7 @@
                     </a>
                 </li>
                 <li class="nav-item mt-4">
-                    <a class="nav-link text-danger" href="/">
+                    <a class="nav-link text-danger" href="#" id="btnLogout">
                         <i class="bi bi-box-arrow-left"></i> 退出登录
                     </a>
                 </li>
@@ -107,6 +107,12 @@ document.getElementById('sidebarNav').addEventListener('click', function(e) {
     link.classList.add('active');
     currentPage = page;
     renderPage(page);
+});
+
+document.getElementById('btnLogout').addEventListener('click', async function(e) {
+    e.preventDefault();
+    await api.auth.logout();
+    window.location.href = '/';
 });
 
 function renderPage(page) {
@@ -213,13 +219,13 @@ function showEditCourseForm(id, name, description, credits, maxStudents, prereqS
         <div class="mb-3"><label class="form-label">课程描述</label><textarea class="form-control" id="f_description">${description}</textarea></div>
         <div class="mb-3"><label class="form-label">学分</label><input class="form-control" type="number" step="0.5" id="f_credits" value="${credits}"></div>
         <div class="mb-3"><label class="form-label">限选人数</label><input class="form-control" type="number" id="f_max_students" value="${maxStudents}"></div>
-        <div class="mb-3"><label class="form-label">先修课程ID（逗号分隔）</label><input class="form-control" id="f_prerequisites" value="${prereqText}"></div>
+        <div class="mb-3"><label class="form-label">先修课程名称（逗号分隔）</label><input class="form-control" id="f_prerequisites" value="${prereqText}"></div>
         <div class="mb-3"><label class="form-label">课程介绍</label><textarea class="form-control" id="f_syllabus" rows="4">${syllabus}</textarea></div>
     `;
     const modal = new bootstrap.Modal(document.getElementById('formModal'));
     document.getElementById('btnFormSave').onclick = async function() {
         const prereqVal = document.getElementById('f_prerequisites').value.trim();
-        const prereqIds = prereqVal ? prereqVal.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)) : [];
+        const prereqIds = prereqVal ? prereqVal.split(',').map(s => s.trim()).filter(s => s) : [];
         const data = {
             description: document.getElementById('f_description').value.trim(),
             credits: parseFloat(document.getElementById('f_credits').value) || 0,

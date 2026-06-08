@@ -242,19 +242,29 @@ def create_course():
 
     if not name:
         return jsonify({'success': False, 'message': '课程名称不能为空'})
+    if not data.get('teacher_id'):
+        return jsonify({'success': False, 'message': '请选择授课教师'})
 
-    course = Course()
-    course.name = name
-    course.description = data.get('description', '').strip()
-    course.credits = data.get('credits', 0.0)
-    course.teacher_id = data.get('teacher_id')
-    course.college_id = college_id
-    course.max_students = data.get('max_students', 30)
-    course.prerequisites = data.get('prerequisites', [])
-    course.syllabus = data.get('syllabus', '').strip()
-    course.save()
+    # 校验教师是否存在且属于本学院
+    teacher = User.find_by_id(data.get('teacher_id'))
+    if not teacher or teacher.role != 'teacher':
+        return jsonify({'success': False, 'message': '指定的教师不存在'})
 
-    return jsonify({'success': True, 'message': '新增课程成功', 'course': course.to_dict()})
+    try:
+        course = Course()
+        course.name = name
+        course.description = data.get('description', '').strip()
+        course.credits = data.get('credits', 0.0)
+        course.teacher_id = data.get('teacher_id')
+        course.college_id = college_id
+        course.max_students = data.get('max_students', 30)
+        course.prerequisites = data.get('prerequisites', [])
+        course.syllabus = data.get('syllabus', '').strip()
+        course.save()
+        return jsonify({'success': True, 'message': '新增课程成功', 'course': course.to_dict()})
+    except Exception as e:
+        get_db().rollback()
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'})
 
 
 @college_admin_bp.route('/courses/<int:course_id>', methods=['PUT'])

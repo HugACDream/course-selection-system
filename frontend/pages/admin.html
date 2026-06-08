@@ -567,16 +567,23 @@ async function refreshCourseTable() {
     renderPagination('coursePagination', coursePage, res.data.total, coursePageSize, (p) => { coursePage = p; refreshCourseTable(); });
 }
 
-function showAddCourseForm() {
+async function showAddCourseForm() {
+    const [tRes, cRes] = await Promise.all([
+        api.admin.listTeachers({ page: 1, page_size: 100 }),
+        api.admin.listColleges()
+    ]);
+    const teacherOpts = tRes.success ? tRes.data.items.map(t => `<option value="${t.id}">${t.name} (${t.username})</option>`).join('') : '';
+    const collegeOpts = cRes.success ? cRes.data.map(c => `<option value="${c.id}">${c.name}</option>`).join('') : '';
+
     document.getElementById('formModalTitle').textContent = '新增课程';
     document.getElementById('formModalBody').innerHTML = `
         <div class="mb-3"><label class="form-label">课程名称</label><input class="form-control" id="f_name"></div>
         <div class="mb-3"><label class="form-label">课程描述</label><textarea class="form-control" id="f_description"></textarea></div>
         <div class="mb-3"><label class="form-label">学分</label><input class="form-control" type="number" id="f_credits" value="0"></div>
-        <div class="mb-3"><label class="form-label">教师ID</label><input class="form-control" id="f_teacher_id"></div>
-        <div class="mb-3"><label class="form-label">学院ID</label><input class="form-control" id="f_college_id"></div>
+        <div class="mb-3"><label class="form-label">授课教师</label><select class="form-select" id="f_teacher_id"><option value="">-- 请选择 --</option>${teacherOpts}</select></div>
+        <div class="mb-3"><label class="form-label">所属学院</label><select class="form-select" id="f_college_id"><option value="">-- 请选择 --</option>${collegeOpts}</select></div>
         <div class="mb-3"><label class="form-label">限选人数</label><input class="form-control" type="number" id="f_max_students" value="30"></div>
-        <div class="mb-3"><label class="form-label">先修课程(JSON数组)</label><input class="form-control" id="f_prerequisites" value="[]"></div>
+        <div class="mb-3"><label class="form-label">先修课程名称（逗号分隔）</label><input class="form-control" id="f_prerequisites" placeholder="例如: 高数提高,线性代数"></div>
         <div class="mb-3"><label class="form-label">课程介绍</label><textarea class="form-control" id="f_syllabus"></textarea></div>
     `;
     const modal = new bootstrap.Modal(document.getElementById('formModal'));
@@ -588,7 +595,7 @@ function showAddCourseForm() {
             teacher_id: parseInt(document.getElementById('f_teacher_id').value) || null,
             college_id: parseInt(document.getElementById('f_college_id').value) || null,
             max_students: parseInt(document.getElementById('f_max_students').value) || 30,
-            prerequisites: JSON.parse(document.getElementById('f_prerequisites').value || '[]'),
+            prerequisites: (() => { const v = document.getElementById('f_prerequisites').value.trim(); return v ? v.split(',').map(s => s.trim()).filter(s => s) : []; })(),
             syllabus: document.getElementById('f_syllabus').value.trim(),
         };
         const res = await api.admin.createCourse(data);
@@ -599,18 +606,25 @@ function showAddCourseForm() {
 }
 
 async function showEditCourseForm(id) {
-    const res = await api.admin.getCourse(id);
+    const [res, tRes, cRes] = await Promise.all([
+        api.admin.getCourse(id),
+        api.admin.listTeachers({ page: 1, page_size: 100 }),
+        api.admin.listColleges()
+    ]);
     if (!res.success) { showAlert(res.message); return; }
     const c = res.course;
+    const teacherOpts = tRes.success ? tRes.data.items.map(t => `<option value="${t.id}" ${t.id === c.teacher_id ? 'selected' : ''}>${t.name} (${t.username})</option>`).join('') : '';
+    const collegeOpts = cRes.success ? cRes.data.map(col => `<option value="${col.id}" ${col.id === c.college_id ? 'selected' : ''}>${col.name}</option>`).join('') : '';
+
     document.getElementById('formModalTitle').textContent = '编辑课程';
     document.getElementById('formModalBody').innerHTML = `
         <div class="mb-3"><label class="form-label">课程名称</label><input class="form-control" id="f_name" value="${c.name}"></div>
         <div class="mb-3"><label class="form-label">课程描述</label><textarea class="form-control" id="f_description">${c.description || ''}</textarea></div>
         <div class="mb-3"><label class="form-label">学分</label><input class="form-control" type="number" id="f_credits" value="${c.credits}"></div>
-        <div class="mb-3"><label class="form-label">教师ID</label><input class="form-control" id="f_teacher_id" value="${c.teacher_id || ''}"></div>
-        <div class="mb-3"><label class="form-label">学院ID</label><input class="form-control" id="f_college_id" value="${c.college_id || ''}"></div>
+        <div class="mb-3"><label class="form-label">授课教师</label><select class="form-select" id="f_teacher_id"><option value="">-- 请选择 --</option>${teacherOpts}</select></div>
+        <div class="mb-3"><label class="form-label">所属学院</label><select class="form-select" id="f_college_id"><option value="">-- 请选择 --</option>${collegeOpts}</select></div>
         <div class="mb-3"><label class="form-label">限选人数</label><input class="form-control" type="number" id="f_max_students" value="${c.max_students}"></div>
-        <div class="mb-3"><label class="form-label">先修课程(JSON)</label><input class="form-control" id="f_prerequisites" value='${JSON.stringify(c.prerequisites)}'></div>
+        <div class="mb-3"><label class="form-label">先修课程名称（逗号分隔）</label><input class="form-control" id="f_prerequisites" value='${Array.isArray(c.prerequisites) ? c.prerequisites.join(',') : ''}'></div>
         <div class="mb-3"><label class="form-label">课程介绍</label><textarea class="form-control" id="f_syllabus">${c.syllabus || ''}</textarea></div>
     `;
     const modal = new bootstrap.Modal(document.getElementById('formModal'));
@@ -622,7 +636,7 @@ async function showEditCourseForm(id) {
             teacher_id: parseInt(document.getElementById('f_teacher_id').value) || null,
             college_id: parseInt(document.getElementById('f_college_id').value) || null,
             max_students: parseInt(document.getElementById('f_max_students').value) || 30,
-            prerequisites: JSON.parse(document.getElementById('f_prerequisites').value || '[]'),
+            prerequisites: (() => { const v = document.getElementById('f_prerequisites').value.trim(); return v ? v.split(',').map(s => s.trim()).filter(s => s) : []; })(),
             syllabus: document.getElementById('f_syllabus').value.trim(),
         };
         const result = await api.admin.updateCourse(id, data);

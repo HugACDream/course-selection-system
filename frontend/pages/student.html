@@ -52,7 +52,7 @@
                     </a>
                 </li>
                 <li class="nav-item mt-4">
-                    <a class="nav-link text-danger" href="/">
+                    <a class="nav-link text-danger" href="#" id="btnLogout">
                         <i class="bi bi-box-arrow-left"></i> 退出登录
                     </a>
                 </li>
@@ -125,6 +125,12 @@ document.getElementById('sidebarNav').addEventListener('click', function(e) {
     link.classList.add('active');
     currentPage = page;
     renderPage(page);
+});
+
+document.getElementById('btnLogout').addEventListener('click', async function(e) {
+    e.preventDefault();
+    await api.auth.logout();
+    window.location.href = '/';
 });
 
 function renderPage(page) {
@@ -356,7 +362,7 @@ async function showCourseDetailModal(courseId) {
         <p><strong>课程描述：</strong>${c.description || '暂无'}</p>
         <p><strong>课程介绍：</strong>${c.syllabus || '暂无'}</p>
         <p><strong>学分：</strong>${c.credits} | <strong>限选人数：</strong>${c.max_students} | <strong>已选人数：</strong>${c.selection_count || 0}</p>
-        <p><strong>先修课程ID：</strong>${Array.isArray(c.prerequisites) && c.prerequisites.length > 0 ? c.prerequisites.join(', ') : '无'}</p>
+        <p><strong>先修课程：</strong>${Array.isArray(c.prerequisites) && c.prerequisites.length > 0 ? c.prerequisites.join(', ') : '无'}</p>
         ${c.course_material_path ? '<p><span class="badge bg-success">有课件可下载</span></p>' : '<p class="text-muted">暂无课件</p>'}
     `;
     document.getElementById('btnSelectCourseInModal').style.display = 'inline-block';

@@ -56,7 +56,7 @@
                     </a>
                 </li>
                 <li class="nav-item mt-4">
-                    <a class="nav-link text-danger" href="/">
+                    <a class="nav-link text-danger" href="#" id="btnLogout">
                         <i class="bi bi-box-arrow-left"></i> 退出登录
                     </a>
                 </li>
@@ -127,6 +127,12 @@ document.getElementById('sidebarNav').addEventListener('click', function(e) {
     link.classList.add('active');
     currentPage = page;
     renderPage(page);
+});
+
+document.getElementById('btnLogout').addEventListener('click', async function(e) {
+    e.preventDefault();
+    await api.auth.logout();
+    window.location.href = '/';
 });
 
 function renderPage(page) {
@@ -499,21 +505,24 @@ async function refreshCourseTable() {
     renderPagination('coursePagination', coursePage, res.data.total, coursePageSize, (p) => { coursePage = p; refreshCourseTable(); });
 }
 
-function showAddCourseForm() {
+async function showAddCourseForm() {
+    const tRes = await api.collegeAdmin.listTeachers({ page: 1, page_size: 100 });
+    const teacherOpts = tRes.success ? tRes.data.items.map(t => `<option value="${t.id}">${t.name} (${t.username})</option>`).join('') : '';
+
     document.getElementById('formModalTitle').textContent = '新增课程';
     document.getElementById('formModalBody').innerHTML = `
         <div class="mb-3"><label class="form-label">课程名称</label><input class="form-control" id="f_name"></div>
         <div class="mb-3"><label class="form-label">课程描述</label><textarea class="form-control" id="f_description"></textarea></div>
         <div class="mb-3"><label class="form-label">学分</label><input class="form-control" type="number" step="0.5" id="f_credits" value="3"></div>
-        <div class="mb-3"><label class="form-label">教师ID</label><input class="form-control" type="number" id="f_teacher_id" placeholder="可选"></div>
+        <div class="mb-3"><label class="form-label">授课教师</label><select class="form-select" id="f_teacher_id"><option value="">-- 请选择 --</option>${teacherOpts}</select></div>
         <div class="mb-3"><label class="form-label">限选人数</label><input class="form-control" type="number" id="f_max_students" value="30"></div>
-        <div class="mb-3"><label class="form-label">先修课程ID（逗号分隔）</label><input class="form-control" id="f_prerequisites" placeholder="例如: 1,2"></div>
+        <div class="mb-3"><label class="form-label">先修课程名称（逗号分隔）</label><input class="form-control" id="f_prerequisites" placeholder="例如: 1,2"></div>
         <div class="mb-3"><label class="form-label">课程大纲</label><textarea class="form-control" id="f_syllabus"></textarea></div>
     `;
     const modal = new bootstrap.Modal(document.getElementById('formModal'));
     document.getElementById('btnFormSave').onclick = async function() {
         const prereqStr = document.getElementById('f_prerequisites').value.trim();
-        const prerequisites = prereqStr ? prereqStr.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)) : [];
+        const prerequisites = prereqStr ? prereqStr.split(',').map(s => s.trim()).filter(s => s) : [];
         const data = {
             name: document.getElementById('f_name').value.trim(),
             description: document.getElementById('f_description').value.trim(),
@@ -532,21 +541,25 @@ function showAddCourseForm() {
 }
 
 async function showEditCourseForm(id) {
-    const resp = await fetch('/api/college-admin/courses?page=1&page_size=100');
-    const listRes = await resp.json();
+    const [listResp, tRes] = await Promise.all([
+        fetch('/api/college-admin/courses?page=1&page_size=100'),
+        api.collegeAdmin.listTeachers({ page: 1, page_size: 100 })
+    ]);
+    const listRes = await listResp.json();
     if (!listRes.success) { showAlert('获取课程信息失败'); return; }
     const c = listRes.data.items.find(item => item.id === id);
     if (!c) { showAlert('课程不存在'); return; }
     const prereqStr = Array.isArray(c.prerequisites) ? c.prerequisites.join(',') : '';
+    const teacherOpts = tRes.success ? tRes.data.items.map(t => `<option value="${t.id}" ${t.id === c.teacher_id ? 'selected' : ''}>${t.name} (${t.username})</option>`).join('') : '';
 
     document.getElementById('formModalTitle').textContent = '编辑课程';
     document.getElementById('formModalBody').innerHTML = `
         <div class="mb-3"><label class="form-label">课程名称</label><input class="form-control" id="f_name" value="${c.name}"></div>
         <div class="mb-3"><label class="form-label">课程描述</label><textarea class="form-control" id="f_description">${c.description || ''}</textarea></div>
         <div class="mb-3"><label class="form-label">学分</label><input class="form-control" type="number" step="0.5" id="f_credits" value="${c.credits}"></div>
-        <div class="mb-3"><label class="form-label">教师ID</label><input class="form-control" type="number" id="f_teacher_id" value="${c.teacher_id || ''}"></div>
+        <div class="mb-3"><label class="form-label">授课教师</label><select class="form-select" id="f_teacher_id"><option value="">-- 请选择 --</option>${teacherOpts}</select></div>
         <div class="mb-3"><label class="form-label">限选人数</label><input class="form-control" type="number" id="f_max_students" value="${c.max_students}"></div>
-        <div class="mb-3"><label class="form-label">先修课程ID（逗号分隔）</label><input class="form-control" id="f_prerequisites" value="${prereqStr}"></div>
+        <div class="mb-3"><label class="form-label">先修课程名称（逗号分隔）</label><input class="form-control" id="f_prerequisites" value="${prereqStr}"></div>
         <div class="mb-3"><label class="form-label">课程大纲</label><textarea class="form-control" id="f_syllabus">${c.syllabus || ''}</textarea></div>
     `;
     const modal = new bootstrap.Modal(document.getElementById('formModal'));

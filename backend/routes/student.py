@@ -127,18 +127,21 @@ def select_course():
     if not course:
         return jsonify({'success': False, 'message': '课程不存在'})
 
-    # 需求10：检查先修课程
+    # 需求10：检查先修课程（按课程名称匹配，同名课程修过任一门即可）
     if course.prerequisites:
-        my_grades = Grade.find_by_student(student_id)
-        passed_course_ids = {
-            g.course_id for g in my_grades
-            if hasattr(g, 'score') and g.score is not None and g.score >= 60
-        }
-        for prereq_id in course.prerequisites:
-            if prereq_id not in passed_course_ids:
+        db = get_db()
+        passed_rows = db.execute(
+            'SELECT DISTINCT c.name FROM grades g '
+            'JOIN courses c ON g.course_id = c.id '
+            'WHERE g.student_id = ? AND g.score >= 60',
+            (student_id,)
+        ).fetchall()
+        passed_names = {r['name'] for r in passed_rows}
+        for prereq_name in course.prerequisites:
+            if prereq_name not in passed_names:
                 return jsonify({
                     'success': False,
-                    'message': '您没有学习该课程的先修课程，不能进行选课！'
+                    'message': f'您未修过先修课程"{prereq_name}"，不能选课！'
                 })
 
     # 检查是否已选过
@@ -198,7 +201,7 @@ def download_course_material(course_id):
         return jsonify({'success': False, 'message': '课件不存在'})
 
     from flask import current_app
-    filepath = os.path.join(current_app.root_path, '..', course.course_material_path)
+    filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], f'course_{course_id}', os.path.basename(course.course_material_path))
     directory = os.path.dirname(filepath)
     filename = os.path.basename(filepath)
 
