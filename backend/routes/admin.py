@@ -76,17 +76,27 @@ def create_student():
     if existing:
         return jsonify({'success': False, 'message': '该用户名已存在'})
 
-    user = User()
-    user.username = username
-    user.password = password
-    user.role = 'student'
-    user.name = name
-    user.college_id = data.get('college_id')
-    user.email = data.get('email', '').strip()
-    user.phone = data.get('phone', '').strip()
-    user.save()
+    if data.get('college_id'):
+        from database import get_db
+        db = get_db()
+        row = db.execute('SELECT id FROM colleges WHERE id = ?', (data.get('college_id'),)).fetchone()
+        if not row:
+            return jsonify({'success': False, 'message': '指定的学院不存在'})
 
-    return jsonify({'success': True, 'message': '新增学生成功', 'user': user.to_dict()})
+    try:
+        user = User()
+        user.username = username
+        user.password = password
+        user.role = 'student'
+        user.name = name
+        user.college_id = data.get('college_id')
+        user.email = data.get('email', '').strip()
+        user.phone = data.get('phone', '').strip()
+        user.save()
+        return jsonify({'success': True, 'message': '新增学生成功', 'user': user.to_dict()})
+    except Exception as e:
+        get_db().rollback()
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'})
 
 
 
@@ -115,13 +125,23 @@ def update_student(student_id):
         return jsonify({'success': False, 'message': '学生不存在'})
 
     data = request.get_json()
-    user.name = data.get('name', user.name)
-    user.college_id = data.get('college_id', user.college_id)
-    user.email = data.get('email', user.email)
-    user.phone = data.get('phone', user.phone)
-    user.update()
+    if data.get('college_id'):
+        from database import get_db
+        db = get_db()
+        row = db.execute('SELECT id FROM colleges WHERE id = ?', (data.get('college_id'),)).fetchone()
+        if not row:
+            return jsonify({'success': False, 'message': '指定的学院不存在'})
 
-    return jsonify({'success': True, 'message': '修改成功', 'user': user.to_dict()})
+    try:
+        user.name = data.get('name', user.name)
+        user.college_id = data.get('college_id', user.college_id)
+        user.email = data.get('email', user.email)
+        user.phone = data.get('phone', user.phone)
+        user.update()
+        return jsonify({'success': True, 'message': '修改成功', 'user': user.to_dict()})
+    except Exception as e:
+        get_db().rollback()
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'})
 
 
 
@@ -187,17 +207,27 @@ def create_teacher():
     if existing:
         return jsonify({'success': False, 'message': '该用户名已存在'})
 
-    user = User()
-    user.username = username
-    user.password = password
-    user.role = 'teacher'
-    user.name = name
-    user.college_id = data.get('college_id')
-    user.email = data.get('email', '').strip()
-    user.phone = data.get('phone', '').strip()
-    user.save()
+    if data.get('college_id'):
+        from database import get_db
+        db = get_db()
+        row = db.execute('SELECT id FROM colleges WHERE id = ?', (data.get('college_id'),)).fetchone()
+        if not row:
+            return jsonify({'success': False, 'message': '指定的学院不存在'})
 
-    return jsonify({'success': True, 'message': '新增教师成功', 'user': user.to_dict()})
+    try:
+        user = User()
+        user.username = username
+        user.password = password
+        user.role = 'teacher'
+        user.name = name
+        user.college_id = data.get('college_id')
+        user.email = data.get('email', '').strip()
+        user.phone = data.get('phone', '').strip()
+        user.save()
+        return jsonify({'success': True, 'message': '新增教师成功', 'user': user.to_dict()})
+    except Exception as e:
+        get_db().rollback()
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'})
 
 
 @admin_bp.route('/teachers/<int:teacher_id>', methods=['GET'])
@@ -224,13 +254,23 @@ def update_teacher(teacher_id):
         return jsonify({'success': False, 'message': '教师不存在'})
 
     data = request.get_json()
-    user.name = data.get('name', user.name)
-    user.college_id = data.get('college_id', user.college_id)
-    user.email = data.get('email', user.email)
-    user.phone = data.get('phone', user.phone)
-    user.update()
+    if data.get('college_id'):
+        from database import get_db
+        db = get_db()
+        row = db.execute('SELECT id FROM colleges WHERE id = ?', (data.get('college_id'),)).fetchone()
+        if not row:
+            return jsonify({'success': False, 'message': '指定的学院不存在'})
 
-    return jsonify({'success': True, 'message': '修改成功', 'user': user.to_dict()})
+    try:
+        user.name = data.get('name', user.name)
+        user.college_id = data.get('college_id', user.college_id)
+        user.email = data.get('email', user.email)
+        user.phone = data.get('phone', user.phone)
+        user.update()
+        return jsonify({'success': True, 'message': '修改成功', 'user': user.to_dict()})
+    except Exception as e:
+        get_db().rollback()
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'})
 
 
 @admin_bp.route('/teachers/<int:teacher_id>', methods=['DELETE'])
@@ -342,17 +382,31 @@ def update_course(course_id):
         return jsonify({'success': False, 'message': '课程不存在'})
 
     data = request.get_json()
-    course.name = data.get('name', course.name)
-    course.description = data.get('description', course.description)
-    course.credits = data.get('credits', course.credits)
-    course.teacher_id = data.get('teacher_id', course.teacher_id)
-    course.college_id = data.get('college_id', course.college_id)
-    course.max_students = data.get('max_students', course.max_students)
-    course.prerequisites = data.get('prerequisites', course.prerequisites)
-    course.syllabus = data.get('syllabus', course.syllabus)
-    course.update()
+    if data.get('college_id'):
+        from database import get_db
+        db = get_db()
+        row = db.execute('SELECT id FROM colleges WHERE id = ?', (data.get('college_id'),)).fetchone()
+        if not row:
+            return jsonify({'success': False, 'message': '指定的学院不存在'})
+    if data.get('teacher_id'):
+        teacher = User.find_by_id(data.get('teacher_id'))
+        if not teacher or teacher.role != 'teacher':
+            return jsonify({'success': False, 'message': '指定的教师不存在'})
 
-    return jsonify({'success': True, 'message': '修改成功', 'course': course.to_dict()})
+    try:
+        course.name = data.get('name', course.name)
+        course.description = data.get('description', course.description)
+        course.credits = data.get('credits', course.credits)
+        course.teacher_id = data.get('teacher_id', course.teacher_id)
+        course.college_id = data.get('college_id', course.college_id)
+        course.max_students = data.get('max_students', course.max_students)
+        course.prerequisites = data.get('prerequisites', course.prerequisites)
+        course.syllabus = data.get('syllabus', course.syllabus)
+        course.update()
+        return jsonify({'success': True, 'message': '修改成功', 'course': course.to_dict()})
+    except Exception as e:
+        get_db().rollback()
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'})
 
 @admin_bp.route('/courses/<int:course_id>', methods=['DELETE'])
 def delete_course(course_id):
@@ -429,15 +483,27 @@ def create_grade():
     if not student_id or not course_id:
         return jsonify({'success': False, 'message': '学生ID和课程ID不能为空'})
 
-    grade = Grade()
-    grade.student_id = student_id
-    grade.course_id = course_id
-    grade.score = score
-    grade.grade_point = None  # TODO: 后续根据 score 自动计算绩点
-    grade.recorded_by = session['user']['id']
-    grade.save()
+    # 校验学生是否存在
+    student = User.find_by_id(student_id)
+    if not student or student.role != 'student':
+        return jsonify({'success': False, 'message': '指定的学生不存在'})
+    # 校验课程是否存在
+    course = Course.find_by_id(course_id)
+    if not course:
+        return jsonify({'success': False, 'message': '指定的课程不存在'})
 
-    return jsonify({'success': True, 'message': '成绩录入成功', 'grade': grade.to_dict()})
+    try:
+        grade = Grade()
+        grade.student_id = student_id
+        grade.course_id = course_id
+        grade.score = score
+        grade.grade_point = None  # TODO: 后续根据 score 自动计算绩点
+        grade.recorded_by = session['user']['id']
+        grade.save()
+        return jsonify({'success': True, 'message': '成绩录入成功', 'grade': grade.to_dict()})
+    except Exception as e:
+        get_db().rollback()
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'})
 
 
 @admin_bp.route('/grades/<int:grade_id>', methods=['PUT'])
@@ -451,10 +517,13 @@ def update_grade(grade_id):
         return jsonify({'success': False, 'message': '成绩记录不存在'})
 
     data = request.get_json()
-    grade.score = data.get('score', grade.score)
-    grade.save()
-
-    return jsonify({'success': True, 'message': '修改成功', 'grade': grade.to_dict()})
+    try:
+        grade.score = data.get('score', grade.score)
+        grade.save()
+        return jsonify({'success': True, 'message': '修改成功', 'grade': grade.to_dict()})
+    except Exception as e:
+        get_db().rollback()
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'})
 
 
 @admin_bp.route('/grades/<int:grade_id>', methods=['DELETE'])
