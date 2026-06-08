@@ -34,9 +34,10 @@ def list_teachers():
 
     page = request.args.get('page', 1, type=int)
     page_size = request.args.get('page_size', 20, type=int)
+    keyword = request.args.get('keyword', '').strip()
 
     users, total = User.find_all(role='teacher', college_id=college_id,
-                                  page=page, page_size=page_size)
+                                  keyword=keyword, page=page, page_size=page_size)
     user_list = [u.to_dict() for u in users]
 
     return jsonify({
@@ -131,9 +132,10 @@ def list_students():
 
     page = request.args.get('page', 1, type=int)
     page_size = request.args.get('page_size', 20, type=int)
+    keyword = request.args.get('keyword', '').strip()
 
     users, total = User.find_all(role='student', college_id=college_id,
-                                  page=page, page_size=page_size)
+                                  keyword=keyword, page=page, page_size=page_size)
     user_list = [u.to_dict() for u in users]
 
     return jsonify({
@@ -262,6 +264,14 @@ def create_course():
     if not teacher or teacher.role != 'teacher':
         return jsonify({'success': False, 'message': '指定的教师不存在'})
 
+    # 检查该教师是否已有同名课程
+    from database import get_db
+    db = get_db()
+    dup = db.execute('SELECT id FROM courses WHERE teacher_id = ? AND name = ?',
+                     (data.get('teacher_id'), name)).fetchone()
+    if dup:
+        return jsonify({'success': False, 'message': '该教师已有同名课程'})
+
     try:
         course = Course()
         course.name = name
@@ -295,11 +305,21 @@ def update_course(course_id):
         if not teacher or teacher.role != 'teacher':
             return jsonify({'success': False, 'message': '指定的教师不存在'})
 
+    # 检查是否与已有课程重名
+    from database import get_db
+    db = get_db()
+    new_name = data.get('name', course.name).strip()
+    new_teacher_id = data.get('teacher_id', course.teacher_id)
+    dup = db.execute('SELECT id FROM courses WHERE teacher_id = ? AND name = ? AND id != ?',
+                     (new_teacher_id, new_name, course_id)).fetchone()
+    if dup:
+        return jsonify({'success': False, 'message': '该教师已有同名课程'})
+
     try:
-        course.name = data.get('name', course.name)
+        course.name = new_name
         course.description = data.get('description', course.description)
         course.credits = data.get('credits', course.credits)
-        course.teacher_id = data.get('teacher_id', course.teacher_id)
+        course.teacher_id = new_teacher_id
         course.max_students = data.get('max_students', course.max_students)
         course.prerequisites = data.get('prerequisites', course.prerequisites)
         course.syllabus = data.get('syllabus', course.syllabus)

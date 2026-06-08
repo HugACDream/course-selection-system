@@ -294,7 +294,7 @@ async function refreshStudentTable() {
         tbody.innerHTML = items.map(u => `
             <tr>
                 <td>${u.id}</td><td>${u.username}</td><td>${u.name}</td>
-                <td>${u.college_id || '-'}</td><td>${u.email || '-'}</td><td>${u.phone || '-'}</td>
+                <td>${u.college_name || u.college_id || '-'}</td><td>${u.email || '-'}</td><td>${u.phone || '-'}</td>
                 <td>
                     <button class="btn btn-sm btn-outline-primary me-1" onclick="showEditStudentForm(${u.id})">编辑</button>
                     <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteStudent(${u.id},'${u.name}')">删除</button>
@@ -424,7 +424,7 @@ async function refreshTeacherTable() {
         tbody.innerHTML = items.map(u => `
             <tr>
                 <td>${u.id}</td><td>${u.username}</td><td>${u.name}</td>
-                <td>${u.college_id || '-'}</td><td>${u.email || '-'}</td><td>${u.phone || '-'}</td>
+                <td>${u.college_name || u.college_id || '-'}</td><td>${u.email || '-'}</td><td>${u.phone || '-'}</td>
                 <td>
                     <button class="btn btn-sm btn-outline-primary me-1" onclick="showEditTeacherForm(${u.id})">编辑</button>
                     <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteTeacher(${u.id},'${u.name}')">删除</button>
@@ -813,6 +813,7 @@ function showAddCollegeForm() {
     document.getElementById('formModalBody').innerHTML = `
         <div class="mb-3"><label class="form-label">学院名称</label><input class="form-control" id="f_name"></div>
         <div class="mb-3"><label class="form-label">描述</label><input class="form-control" id="f_description"></div>
+        <div class="alert alert-info mb-0"><i class="bi bi-info-circle"></i> 创建学院时将自动生成管理员账号：<strong>学院名_admin</strong>，默认密码：<strong>admin123</strong></div>
     `;
     const modal = new bootstrap.Modal(document.getElementById('formModal'));
     document.getElementById('btnFormSave').onclick = async function() {
@@ -893,8 +894,18 @@ async function loadStatistics(container) {
         }
     });
 
-    document.getElementById('btnExportStats').addEventListener('click', () => {
-        showAlert('导出功能待实现');
+    document.getElementById('btnExportStats').addEventListener('click', async () => {
+        const res = await fetch('/api/admin/statistics/course-selection/export');
+        if (!res.ok) { showAlert('导出失败'); return; }
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'course_selection_statistics.csv';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
     });
 }
 </script>

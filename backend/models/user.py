@@ -27,17 +27,20 @@ class User:
         self.college_id = row['college_id']
         self.email = row['email']
         self.phone = row['phone']
+        self.college_name = row['college_name'] if 'college_name' in row.keys() else None
 
     def to_dict(self):
-        return {
+        d = {
             'id': self.id,
             'username': self.username,
             'role': self.role,
             'name': self.name,
             'college_id': self.college_id,
+            'college_name': self.college_name,
             'email': self.email,
             'phone': self.phone,
         }
+        return {k: v for k, v in d.items() if v is not None}
 
 
     @staticmethod
@@ -58,30 +61,33 @@ class User:
 
 
     @staticmethod
-    def find_all(role=None, college_id=None, page=1, page_size=20):
+    def find_all(role=None, college_id=None, keyword='', page=1, page_size=20):
         db = get_db()
         conditions = []
         params = []
 
         if role:
-            conditions.append('role = ?')
+            conditions.append('u.role = ?')
             params.append(role)
         if college_id is not None:
-            conditions.append('college_id = ?')
+            conditions.append('u.college_id = ?')
             params.append(college_id)
+        if keyword:
+            conditions.append('(u.username LIKE ? OR u.name LIKE ?)')
+            params.extend([f'%{keyword}%', f'%{keyword}%'])
 
         where_clause = ' WHERE ' + ' AND '.join(conditions) if conditions else ''
 
-        # 查总数
+        base_from = 'FROM users u LEFT JOIN colleges c ON u.college_id = c.id'
+
         count_row = db.execute(
-            f'SELECT COUNT(*) as cnt FROM users{where_clause}', params
+            f'SELECT COUNT(*) as cnt {base_from}{where_clause}', params
         ).fetchone()
         total = count_row['cnt']
 
-        # 查分页数据
         offset = (page - 1) * page_size
         rows = db.execute(
-            f'SELECT * FROM users{where_clause} LIMIT ? OFFSET ?',
+            f'SELECT u.*, c.name as college_name {base_from}{where_clause} ORDER BY u.id LIMIT ? OFFSET ?',
             params + [page_size, offset]
         ).fetchall()
 

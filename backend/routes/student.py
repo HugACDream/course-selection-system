@@ -183,7 +183,7 @@ def list_my_grades():
         return resp
 
     grades = Grade.find_by_student(student_id)
-    items = [dict(r) for r in grades]
+    items = [r.to_dict() for r in grades]
     return jsonify({'success': True, 'data': items})
 
 # ============================================================

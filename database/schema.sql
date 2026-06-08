@@ -38,8 +38,12 @@ CREATE TABLE IF NOT EXISTS courses (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (teacher_id) REFERENCES users(id),
-    FOREIGN KEY (college_id) REFERENCES colleges(id)
+    FOREIGN KEY (college_id) REFERENCES colleges(id),
+    UNIQUE(teacher_id, name)
 );
+
+-- 确保已有表也有该约束（CREATE TABLE IF NOT EXISTS 不会重建已存在的表）
+CREATE UNIQUE INDEX IF NOT EXISTS idx_courses_teacher_name ON courses(teacher_id, name);
 
 -- 选课记录表
 CREATE TABLE IF NOT EXISTS course_selections (

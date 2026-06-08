@@ -26,9 +26,12 @@ class Grade:
         self.grade_point = row['grade_point']
         self.recorded_by = row['recorded_by']
         self.recorded_at = row['recorded_at']
+        self.course_name = row['course_name'] if 'course_name' in row.keys() else None
+        self.credits = row['credits'] if 'credits' in row.keys() else None
+        self.student_name = row['student_name'] if 'student_name' in row.keys() else None
 
     def to_dict(self):
-        return {
+        d = {
             'id': self.id,
             'student_id': self.student_id,
             'course_id': self.course_id,
@@ -36,7 +39,11 @@ class Grade:
             'grade_point': self.grade_point,
             'recorded_by': self.recorded_by,
             'recorded_at': str(self.recorded_at) if self.recorded_at else None,
+            'course_name': self.course_name,
+            'credits': self.credits,
+            'student_name': self.student_name,
         }
+        return {k: v for k, v in d.items() if v is not None}
 
     # ---- CRUD 方法 ----
 
@@ -52,7 +59,7 @@ class Grade:
     def find_by_student(student_id):
         db = get_db()
         rows = db.execute(
-            'SELECT g.*, c.name as course_name FROM grades g '
+            'SELECT g.*, c.name as course_name, c.credits FROM grades g '
             'JOIN courses c ON g.course_id = c.id WHERE g.student_id = ?',
             (student_id,)
         ).fetchall()

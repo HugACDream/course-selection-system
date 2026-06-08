@@ -152,7 +152,7 @@ def list_course_grades(course_id):
         return jsonify({'success': False, 'message': '课程不存在或不属于您'})
 
     grades = Grade.find_by_course(course_id)
-    items = [dict(r) for r in grades]
+    items = [r.to_dict() for r in grades]
     return jsonify({'success': True, 'data': items})
 
 

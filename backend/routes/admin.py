@@ -40,9 +40,7 @@ def list_students():
     keyword = request.args.get('keyword', '').strip()
 
     users, total = User.find_all(role='student', college_id=college_id,
-                                  page=page, page_size=page_size)
-
-    # TODO: 后续在 find_all 中加入 keyword 搜索支持
+                                  keyword=keyword, page=page, page_size=page_size)
     user_list = [u.to_dict() for u in users]
 
     return jsonify({
@@ -173,9 +171,10 @@ def list_teachers():
     page = request.args.get('page', 1, type=int)
     page_size = request.args.get('page_size', 20, type=int)
     college_id = request.args.get('college_id', None, type=int)
+    keyword = request.args.get('keyword', '').strip()
 
     users, total = User.find_all(role='teacher', college_id=college_id,
-                                  page=page, page_size=page_size)
+                                  keyword=keyword, page=page, page_size=page_size)
     user_list = [u.to_dict() for u in users]
 
     return jsonify({
@@ -343,6 +342,12 @@ def create_course():
     if not college:
         return jsonify({'success': False, 'message': '指定的学院不存在'})
 
+    # 检查该教师是否已有同名课程
+    dup = db.execute('SELECT id FROM courses WHERE teacher_id = ? AND name = ?',
+                     (data.get('teacher_id'), name)).fetchone()
+    if dup:
+        return jsonify({'success': False, 'message': '该教师已有同名课程'})
+
     try:
         course = Course()
         course.name = name
@@ -392,6 +397,16 @@ def update_course(course_id):
         teacher = User.find_by_id(data.get('teacher_id'))
         if not teacher or teacher.role != 'teacher':
             return jsonify({'success': False, 'message': '指定的教师不存在'})
+
+    # 检查是否与已有课程重名
+    from database import get_db
+    db = get_db()
+    new_name = data.get('name', course.name).strip()
+    new_teacher_id = data.get('teacher_id', course.teacher_id)
+    dup = db.execute('SELECT id FROM courses WHERE teacher_id = ? AND name = ? AND id != ?',
+                     (new_teacher_id, new_name, course_id)).fetchone()
+    if dup:
+        return jsonify({'success': False, 'message': '该教师已有同名课程'})
 
     try:
         course.name = data.get('name', course.name)
@@ -576,14 +591,25 @@ def create_college():
             'INSERT INTO colleges (name, description) VALUES (?, ?)',
             (name, description)
         )
+        college_id = cursor.lastrowid
+        # 自动生成学院管理员账号: 学院名拼音_admin
+        admin_username = name + '_admin'
+        existing = db.execute('SELECT id FROM users WHERE username = ?', (admin_username,)).fetchone()
+        if not existing:
+            db.execute(
+                'INSERT INTO users (username, password, role, name, college_id) VALUES (?, ?, ?, ?, ?)',
+                (admin_username, 'admin123', 'college_admin', name + '管理员', college_id)
+            )
         db.commit()
         return jsonify({
             'success': True,
-            'message': '新增学院成功',
-            'college': {'id': cursor.lastrowid, 'name': name, 'description': description}
+            'message': '新增学院成功，已自动生成管理员账号: ' + admin_username,
+            'college': {'id': college_id, 'name': name, 'description': description},
+            'admin_account': admin_username
         })
-    except:
-        return jsonify({'success': False, 'message': '学院名称已存在'})
+    except Exception as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'})
 
 
 # ============================================================
@@ -602,6 +628,24 @@ def course_selection_statistics():
 
 @admin_bp.route('/statistics/course-selection/export', methods=['GET'])
 def export_course_selection_statistics():
-    """导出选课统计数据为Excel或CSV"""
-    # TODO: 获取选课统计数据，生成CSV/Excel文件并返回下载
-    return jsonify({'success': False, 'message': 'TODO: 导出统计待实现'})
+    err = admin_required()
+    if err:
+        return err
+
+    import csv, io
+    from flask import Response
+
+    stats = Course.get_selection_statistics()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['课程ID', '课程名称', '选课人数'])
+    for s in stats:
+        writer.writerow([s['course_id'], s['course_name'], s['count']])
+
+    csv_content = output.getvalue()
+    output.close()
+    return Response(
+        csv_content,
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=course_selection_statistics.csv'}
+    )
