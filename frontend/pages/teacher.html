@@ -203,24 +203,34 @@ async function renderMyCourses(container) {
                     <p class="card-text text-muted small">${c.description || '暂无描述'}</p>
                     <p class="mb-1"><small>学分: ${c.credits} | 限选: ${c.max_students}人 | 已选: ${c.selection_count || 0}人</small></p>
                     <p class="mb-2"><small>先修课程: ${Array.isArray(c.prerequisites) && c.prerequisites.length > 0 ? c.prerequisites.join(',') : '无'}</small></p>
-                    <button class="btn btn-sm btn-outline-primary me-1" onclick="showEditCourseForm(${c.id}, '${c.name.replace(/'/g, "\\'")}', '${(c.description || '').replace(/'/g, "\\'")}', ${c.credits}, ${c.max_students}, '${JSON.stringify(c.prerequisites).replace(/'/g, "\\'")}', '${(c.syllabus || '').replace(/'/g, "\\'")}')">编辑</button>
+                    <button class="btn btn-sm btn-outline-primary me-1 btn-edit-course" data-course='${JSON.stringify(c).replace(/"/g, '&quot;')}'>编辑</button>
                     <button class="btn btn-sm btn-outline-success" onclick="uploadMaterialPrompt(${c.id})">上传课件</button>
                 </div>
             </div>
         </div>
     `).join('');
+
+    // 事件委托: 编辑课程按钮
+    document.getElementById('courseCards').addEventListener('click', function(e) {
+        const btn = e.target.closest('.btn-edit-course');
+        if (!btn) return;
+        const course = JSON.parse(btn.dataset.course);
+        showEditCourseForm(course);
+    });
 }
 
-function showEditCourseForm(id, name, description, credits, maxStudents, prereqStr, syllabus) {
-    const prereqs = JSON.parse(prereqStr);
-    const prereqText = Array.isArray(prereqs) ? prereqs.join(',') : '';
+function showEditCourseForm(course) {
+    const id = course.id;
+    const name = course.name;
+    const description = course.description || '';
+    const prereqText = Array.isArray(course.prerequisites) ? course.prerequisites.join(',') : '';
     document.getElementById('formModalTitle').textContent = '编辑课程 - ' + name;
     document.getElementById('formModalBody').innerHTML = `
         <div class="mb-3"><label class="form-label">课程描述</label><textarea class="form-control" id="f_description">${description}</textarea></div>
-        <div class="mb-3"><label class="form-label">学分</label><input class="form-control" type="number" step="0.5" id="f_credits" value="${credits}"></div>
-        <div class="mb-3"><label class="form-label">限选人数</label><input class="form-control" type="number" id="f_max_students" value="${maxStudents}"></div>
+        <div class="mb-3"><label class="form-label">学分</label><input class="form-control" type="number" step="0.5" id="f_credits" value="${course.credits}"></div>
+        <div class="mb-3"><label class="form-label">限选人数</label><input class="form-control" type="number" id="f_max_students" value="${course.max_students}"></div>
         <div class="mb-3"><label class="form-label">先修课程名称（逗号分隔）</label><input class="form-control" id="f_prerequisites" value="${prereqText}"></div>
-        <div class="mb-3"><label class="form-label">课程介绍</label><textarea class="form-control" id="f_syllabus" rows="4">${syllabus}</textarea></div>
+        <div class="mb-3"><label class="form-label">课程介绍</label><textarea class="form-control" id="f_syllabus" rows="4">${course.syllabus || ''}</textarea></div>
     `;
     const modal = new bootstrap.Modal(document.getElementById('formModal'));
     document.getElementById('btnFormSave').onclick = async function() {

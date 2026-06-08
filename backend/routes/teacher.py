@@ -73,15 +73,17 @@ def update_course(course_id):
         return jsonify({'success': False, 'message': '课程不存在或不属于您'})
 
     data = request.get_json()
-    course.name = data.get('name', course.name)
-    course.description = data.get('description', course.description)
-    course.credits = data.get('credits', course.credits)
-    course.max_students = data.get('max_students', course.max_students)
-    course.prerequisites = data.get('prerequisites', course.prerequisites)
-    course.syllabus = data.get('syllabus', course.syllabus)
-    course.update()
-
-    return jsonify({'success': True, 'message': '更新成功', 'course': course.to_dict()})
+    try:
+        course.description = data.get('description', course.description)
+        course.credits = data.get('credits', course.credits)
+        course.max_students = data.get('max_students', course.max_students)
+        course.prerequisites = data.get('prerequisites', course.prerequisites)
+        course.syllabus = data.get('syllabus', course.syllabus)
+        course.update()
+        return jsonify({'success': True, 'message': '更新成功', 'course': course.to_dict()})
+    except Exception as e:
+        get_db().rollback()
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'})
 
 
 @teacher_bp.route('/courses/<int:course_id>/upload-material', methods=['POST'])
