@@ -73,13 +73,13 @@ class Course:
         params = []
 
         if college_id is not None:
-            conditions.append('college_id = ?')
+            conditions.append('c.college_id = ?')
             params.append(college_id)
         if teacher_id is not None:
-            conditions.append('teacher_id = ?')
+            conditions.append('c.teacher_id = ?')
             params.append(teacher_id)
         if keyword:
-            conditions.append('name LIKE ?')
+            conditions.append('c.name LIKE ?')
             params.append(f'%{keyword}%')
 
         where_clause = ' WHERE ' + ' AND '.join(conditions) if conditions else ''
