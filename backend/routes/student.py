@@ -14,6 +14,7 @@ from models.course import Course
 from models.selection import CourseSelection
 from models.grade import Grade
 from models.message import Message
+from models.course_material import CourseMaterial
 import os
 
 student_bp = Blueprint('student', __name__)
@@ -190,25 +191,52 @@ def list_my_grades():
 # 课件下载（需求11: 下载课件）
 # ============================================================
 
-@student_bp.route('/courses/<int:course_id>/download-material', methods=['GET'])
-def download_course_material(course_id):
+def _has_confirmed_selection(student_id, course_id):
+    """校验学生是否已中签该课程"""
+    from database import get_db
+    db = get_db()
+    row = db.execute(
+        'SELECT id FROM course_selections WHERE student_id = ? AND course_id = ? AND status = ?',
+        (student_id, course_id, 'confirmed')
+    ).fetchone()
+    return row is not None
+
+
+@student_bp.route('/courses/<int:course_id>/materials', methods=['GET'])
+def list_course_materials(course_id):
     student_id, err, resp = student_required()
     if err:
         return resp
 
-    course = Course.find_by_id(course_id)
-    if not course or not course.course_material_path:
+    if not _has_confirmed_selection(student_id, course_id):
+        return jsonify({'success': False, 'message': '您未中签该课程，无法查看课件'})
+
+    materials = CourseMaterial.find_by_course(course_id)
+    return jsonify({'success': True, 'data': [m.to_dict() for m in materials]})
+
+
+@student_bp.route('/courses/<int:course_id>/materials/<int:material_id>/download', methods=['GET'])
+def download_course_material(course_id, material_id):
+    student_id, err, resp = student_required()
+    if err:
+        return resp
+
+    if not _has_confirmed_selection(student_id, course_id):
+        return jsonify({'success': False, 'message': '您未中签该课程，无法下载课件'})
+
+    material = CourseMaterial.find_by_id(material_id)
+    if not material or material.course_id != course_id:
         return jsonify({'success': False, 'message': '课件不存在'})
 
     from flask import current_app
-    filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], f'course_{course_id}', os.path.basename(course.course_material_path))
+    filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], f'course_{course_id}', material.filename)
     directory = os.path.dirname(filepath)
     filename = os.path.basename(filepath)
 
     if not os.path.exists(filepath):
         return jsonify({'success': False, 'message': '课件文件不存在'})
 
-    return send_from_directory(directory, filename, as_attachment=True)
+    return send_from_directory(directory, filename, as_attachment=True, download_name=filename)
 
 # ============================================================
 # 消息功能（需求12: 给任课教师发送信息和回复任课教师的留言）

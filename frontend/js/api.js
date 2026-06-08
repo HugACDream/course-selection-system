@@ -112,6 +112,9 @@ const api = {
 
         // 成绩管理
         listGrades: (params) => api.get('/college-admin/grades?' + new URLSearchParams(params)),
+        createGrade: (data) => api.post('/college-admin/grades', data),
+        updateGrade: (id, data) => api.put('/college-admin/grades/' + id, data),
+        deleteGrade: (id) => api.delete('/college-admin/grades/' + id),
 
         // 抽签（需求4）
         lottery: (courseId, data) => api.post('/college-admin/lottery/' + courseId, data),
@@ -160,6 +163,9 @@ const api = {
         listMySelections: () => api.get('/student/my-selections'),
         selectCourse: (courseId) => api.post('/student/select-course', { course_id: courseId }),
         cancelSelection: (selectionId) => api.post('/student/cancel-selection/' + selectionId),
+
+        // 课件下载
+        listCourseMaterials: (courseId) => api.get('/student/courses/' + courseId + '/materials'),
 
         // 成绩查询
         listMyGrades: () => api.get('/student/my-grades'),

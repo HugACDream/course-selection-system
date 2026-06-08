@@ -72,6 +72,19 @@ CREATE TABLE IF NOT EXISTS grades (
     UNIQUE(student_id, course_id)
 );
 
+-- 课件表（支持多文件）
+CREATE TABLE IF NOT EXISTS course_materials (
+    id INTEGER PRIMARY KEY,
+    course_id INTEGER NOT NULL,
+    filename VARCHAR(255) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    file_size INTEGER DEFAULT 0,
+    uploaded_by INTEGER,
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (course_id) REFERENCES courses(id),
+    FOREIGN KEY (uploaded_by) REFERENCES users(id)
+);
+
 -- 消息表
 CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY,

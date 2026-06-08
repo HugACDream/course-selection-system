@@ -13,6 +13,7 @@ class User:
         self.role = ''         # admin / college_admin / teacher / student
         self.name = ''
         self.college_id = None
+        self.college_name = None
         self.email = ''
         self.phone = ''
         if row:

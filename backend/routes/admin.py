@@ -301,9 +301,10 @@ def list_courses():
     page_size = request.args.get('page_size', 20, type=int)
     college_id = request.args.get('college_id', None, type=int)
     teacher_id = request.args.get('teacher_id', None, type=int)
+    keyword = request.args.get('keyword', '').strip()
 
     courses, total = Course.find_all(college_id=college_id, teacher_id=teacher_id,
-                                      page=page, page_size=page_size)
+                                      keyword=keyword, page=page, page_size=page_size)
     course_list = [c.to_dict() for c in courses]
 
     return jsonify({

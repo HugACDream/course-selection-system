@@ -15,6 +15,9 @@ class Grade:
         self.grade_point = None  # 绩点
         self.recorded_by = None  # 录入教师id
         self.recorded_at = None
+        self.course_name = None
+        self.credits = None
+        self.student_name = None
         if row:
             self._from_row(row)
 

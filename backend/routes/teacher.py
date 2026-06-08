@@ -10,6 +10,7 @@ from models.course import Course
 from models.selection import CourseSelection
 from models.grade import Grade
 from models.message import Message
+from models.course_material import CourseMaterial
 import os
 
 from flask import Blueprint, request, jsonify, session
@@ -96,28 +97,36 @@ def upload_course_material(course_id):
     if not course or course.teacher_id != teacher_id:
         return jsonify({'success': False, 'message': '课程不存在或不属于您'})
 
-    if 'file' not in request.files:
-        return jsonify({'success': False, 'message': '请选择文件'})
-
-    file = request.files['file']
-    if file.filename == '':
+    files = request.files.getlist('files')
+    if not files or all(f.filename == '' for f in files):
         return jsonify({'success': False, 'message': '请选择文件'})
 
     from flask import current_app
     upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], f'course_{course_id}')
     os.makedirs(upload_dir, exist_ok=True)
 
-    filename = file.filename
-    filepath = os.path.join(upload_dir, filename)
-    file.save(filepath)
+    uploaded = []
+    for file in files:
+        if file.filename == '':
+            continue
+        filename = file.filename
+        filepath = os.path.join(upload_dir, filename)
+        file.save(filepath)
+        size = os.path.getsize(filepath)
 
-    course.course_material_path = f'uploads/course_{course_id}/{filename}'
-    course.update()
+        material = CourseMaterial()
+        material.course_id = course_id
+        material.filename = filename
+        material.file_path = f'uploads/course_{course_id}/{filename}'
+        material.file_size = size
+        material.uploaded_by = teacher_id
+        material.save()
+        uploaded.append(material.to_dict())
 
     return jsonify({
         'success': True,
-        'message': '上传成功',
-        'file_path': course.course_material_path
+        'message': f'成功上传{len(uploaded)}个文件',
+        'data': uploaded
     })
 
 

@@ -9,6 +9,7 @@ from database import get_db
 from models.user import User
 from models.course import Course
 from models.selection import CourseSelection
+from models.grade import Grade
 
 college_admin_bp = Blueprint('college_admin', __name__)
 
@@ -230,8 +231,9 @@ def list_courses():
 
     page = request.args.get('page', 1, type=int)
     page_size = request.args.get('page_size', 20, type=int)
+    keyword = request.args.get('keyword', '').strip()
 
-    courses, total = Course.find_all(college_id=college_id, page=page, page_size=page_size)
+    courses, total = Course.find_all(college_id=college_id, keyword=keyword, page=page, page_size=page_size)
     course_list = [c.to_dict() for c in courses]
 
     return jsonify({
@@ -426,6 +428,108 @@ def list_grades():
     })
 
 
+@college_admin_bp.route('/grades', methods=['POST'])
+def create_grade():
+    college_id, err, resp = college_admin_required()
+    if err:
+        return resp
+
+    data = request.get_json()
+    student_id = data.get('student_id')
+    course_id = data.get('course_id')
+    score = data.get('score')
+
+    if not student_id or not course_id:
+        return jsonify({'success': False, 'message': '学生ID和课程ID不能为空'})
+
+    # 校验学生是否存在
+    student = User.find_by_id(student_id)
+    if not student or student.role != 'student':
+        return jsonify({'success': False, 'message': '指定的学生不存在'})
+
+    # 校验课程是否存在且属于本学院
+    course = Course.find_by_id(course_id)
+    if not course or course.college_id != college_id:
+        return jsonify({'success': False, 'message': '课程不存在或不属于本学院'})
+
+    # 自动计算绩点
+    grade_point = None
+    if score is not None:
+        s = float(score)
+        if s >= 90: grade_point = 4.0
+        elif s >= 80: grade_point = 3.0
+        elif s >= 70: grade_point = 2.0
+        elif s >= 60: grade_point = 1.0
+        else: grade_point = 0.0
+
+    try:
+        grade = Grade()
+        grade.student_id = student_id
+        grade.course_id = course_id
+        grade.score = score
+        grade.grade_point = grade_point
+        grade.recorded_by = session['user']['id']
+        grade.save()
+        return jsonify({'success': True, 'message': '成绩录入成功', 'grade': grade.to_dict()})
+    except Exception as e:
+        get_db().rollback()
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'})
+
+
+@college_admin_bp.route('/grades/<int:grade_id>', methods=['PUT'])
+def update_grade(grade_id):
+    college_id, err, resp = college_admin_required()
+    if err:
+        return resp
+
+    grade = Grade.find_by_id(grade_id)
+    if not grade:
+        return jsonify({'success': False, 'message': '成绩记录不存在'})
+
+    # 校验成绩所属课程是否属于本学院
+    course = Course.find_by_id(grade.course_id)
+    if not course or course.college_id != college_id:
+        return jsonify({'success': False, 'message': '成绩记录不属于本学院'})
+
+    data = request.get_json()
+    new_score = data.get('score', grade.score)
+    grade_point = None
+    if new_score is not None:
+        s = float(new_score)
+        if s >= 90: grade_point = 4.0
+        elif s >= 80: grade_point = 3.0
+        elif s >= 70: grade_point = 2.0
+        elif s >= 60: grade_point = 1.0
+        else: grade_point = 0.0
+
+    try:
+        grade.score = new_score
+        grade.grade_point = grade_point
+        grade.save()
+        return jsonify({'success': True, 'message': '修改成功', 'grade': grade.to_dict()})
+    except Exception as e:
+        get_db().rollback()
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'})
+
+
+@college_admin_bp.route('/grades/<int:grade_id>', methods=['DELETE'])
+def delete_grade(grade_id):
+    college_id, err, resp = college_admin_required()
+    if err:
+        return resp
+
+    grade = Grade.find_by_id(grade_id)
+    if not grade:
+        return jsonify({'success': False, 'message': '成绩记录不存在'})
+
+    course = Course.find_by_id(grade.course_id)
+    if not course or course.college_id != college_id:
+        return jsonify({'success': False, 'message': '成绩记录不属于本学院'})
+
+    grade.delete()
+    return jsonify({'success': True, 'message': '删除成功'})
+
+
 # ============================================================
 # 抽签功能（需求4: 对选择课程的学生进行抽签，并按课程生成中签学生名单）
 # ============================================================
@@ -468,7 +572,27 @@ def export_lottery_result(course_id):
     if err:
         return resp
 
+    course = Course.find_by_id(course_id)
+    if not course or course.college_id != college_id:
+        return jsonify({'success': False, 'message': '课程不存在或不属于本学院'})
+
+    import csv, io
+    from flask import Response
+
     confirmed = CourseSelection.find_confirmed_by_course(course_id)
     items = [dict(r) for r in confirmed]
-    # TODO: 生成CSV文件并返回下载
-    return jsonify({'success': True, 'data': items})
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['学号', '姓名', '邮箱', '电话', '状态'])
+    for s in items:
+        writer.writerow([s.get('username', ''), s.get('name', ''),
+                         s.get('email', ''), s.get('phone', ''), s.get('status', 'confirmed')])
+
+    csv_content = output.getvalue()
+    output.close()
+    return Response(
+        csv_content,
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename=lottery_result_course_{course_id}.csv'}
+    )

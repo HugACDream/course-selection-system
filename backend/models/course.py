@@ -61,7 +61,7 @@ class Course:
 
 
     @staticmethod
-    def find_all(college_id=None, teacher_id=None, page=1, page_size=20):
+    def find_all(college_id=None, teacher_id=None, keyword='', page=1, page_size=20):
         db = get_db()
         conditions = []
         params = []
@@ -72,6 +72,9 @@ class Course:
         if teacher_id is not None:
             conditions.append('teacher_id = ?')
             params.append(teacher_id)
+        if keyword:
+            conditions.append('name LIKE ?')
+            params.append(f'%{keyword}%')
 
         where_clause = ' WHERE ' + ' AND '.join(conditions) if conditions else ''
 
@@ -82,7 +85,7 @@ class Course:
 
         offset = (page - 1) * page_size
         rows = db.execute(
-            f'SELECT * FROM courses{where_clause} LIMIT ? OFFSET ?',
+            f'SELECT * FROM courses{where_clause} ORDER BY id LIMIT ? OFFSET ?',
             params + [page_size, offset]
         ).fetchall()
 

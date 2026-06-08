@@ -253,10 +253,13 @@ function showEditCourseForm(course) {
 function uploadMaterialPrompt(courseId) {
     const input = document.createElement('input');
     input.type = 'file';
+    input.multiple = true;
     input.onchange = async function() {
-        if (!input.files[0]) return;
+        if (!input.files.length) return;
         const formData = new FormData();
-        formData.append('file', input.files[0]);
+        for (const f of input.files) {
+            formData.append('files', f);
+        }
         const res = await api.teacher.uploadMaterial(courseId, formData);
         showAlert(res.message);
     };
@@ -560,7 +563,7 @@ async function renderMessages(container) {
         const sRes = await api.teacher.getConfirmedStudents(courseId);
         studentSel.innerHTML = '<option value="">-- 选择学生 --</option>';
         if (sRes.success) {
-            sRes.data.forEach(s => { studentSel.innerHTML += `<option value="${s.id}">${s.name} (${s.username})</option>`; });
+            sRes.data.forEach(s => { studentSel.innerHTML += `<option value="${s.student_id}">${s.name} (${s.username})</option>`; });
         }
     });
 

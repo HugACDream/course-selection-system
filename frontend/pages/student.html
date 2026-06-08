@@ -41,6 +41,11 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="my-courses">
+                        <i class="bi bi-book"></i> 我的课程
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link" href="#" data-page="my-grades">
                         <i class="bi bi-bar-chart"></i> 成绩查询
                     </a>
@@ -140,6 +145,7 @@ function renderPage(page) {
         case 'profile':         renderProfile(container); break;
         case 'course-selection':renderCourseSelection(container); break;
         case 'my-selections':   renderMySelections(container); break;
+        case 'my-courses':      renderMyCourses(container); break;
         case 'my-grades':       renderMyGrades(container); break;
         case 'messages':        renderMessages(container); break;
     }
@@ -354,24 +360,40 @@ function renderPagination(navId, page, total, pageSize, callback) {
 // 课程详情模态框
 async function showCourseDetailModal(courseId) {
     currentDetailCourseId = courseId;
-    const res = await api.student.getCourseDetail(courseId);
-    if (!res.success) { showAlert(res.message); return; }
-    const c = res.course;
+    const [courseRes, matRes] = await Promise.all([
+        api.student.getCourseDetail(courseId),
+        api.student.listCourseMaterials(courseId)
+    ]);
+    if (!courseRes.success) { showAlert(courseRes.message); return; }
+    const c = courseRes.course;
+
+    let materialHtml = '';
+    if (matRes.success && matRes.data.length > 0) {
+        materialHtml = '<hr><h6><i class="bi bi-paperclip"></i> 课件列表</h6><ul class="list-group mb-2">';
+        matRes.data.forEach(m => {
+            materialHtml += `<li class="list-group-item d-flex justify-content-between align-items-center">
+                ${m.filename} <small class="text-muted">(${(m.file_size / 1024).toFixed(1)} KB)</small>
+                <a href="/api/student/courses/${courseId}/materials/${m.id}/download" class="btn btn-sm btn-outline-success" target="_blank"><i class="bi bi-download"></i> 下载</a>
+            </li>`;
+        });
+        materialHtml += '</ul>';
+    } else {
+        materialHtml = '<hr><p class="text-muted"><i class="bi bi-paperclip"></i> 暂无课件（仅有中签该课程的学生可下载）</p>';
+    }
+
     document.getElementById('courseDetailTitle').textContent = c.name;
     document.getElementById('courseDetailBody').innerHTML = `
         <p><strong>课程描述：</strong>${c.description || '暂无'}</p>
         <p><strong>课程介绍：</strong>${c.syllabus || '暂无'}</p>
         <p><strong>学分：</strong>${c.credits} | <strong>限选人数：</strong>${c.max_students} | <strong>已选人数：</strong>${c.selection_count || 0}</p>
         <p><strong>先修课程：</strong>${Array.isArray(c.prerequisites) && c.prerequisites.length > 0 ? c.prerequisites.join(', ') : '无'}</p>
-        ${c.course_material_path ? '<p><span class="badge bg-success">有课件可下载</span></p>' : '<p class="text-muted">暂无课件</p>'}
+        ${materialHtml}
     `;
-    document.getElementById('btnSelectCourseInModal').style.display = 'inline-block';
+    // 检查是否已选/已中签，决定是否显示"选择此课程"按钮
+    const selList = await api.student.listMySelections();
+    const mySel = selList.success ? selList.data.find(s => s.course_id === courseId) : null;
+    document.getElementById('btnSelectCourseInModal').style.display = mySel ? 'none' : 'inline-block';
     document.getElementById('btnDownloadMaterialLink').classList.add('d-none');
-    if (c.course_material_path) {
-        const link = document.getElementById('btnDownloadMaterialLink');
-        link.classList.remove('d-none');
-        link.href = '/api/student/courses/' + courseId + '/download-material';
-    }
 
     document.getElementById('btnSelectCourseInModal').onclick = async function() {
         const selRes = await api.student.selectCourse(courseId);
@@ -436,6 +458,62 @@ async function cancelSelection(selectionId) {
     const res = await api.student.cancelSelection(selectionId);
     showAlert(res.message);
     if (res.success) renderMySelections(document.getElementById('mainContent'));
+}
+
+
+// ============================================================
+// 我的课程（中签课程 + 课件）
+// ============================================================
+
+async function renderMyCourses(container) {
+    container.innerHTML = `
+        <h4 class="mb-3"><i class="bi bi-book"></i> 我的课程</h4>
+        <div class="row g-3" id="myCourseCards">
+            <div class="col-12 text-muted">加载中...</div>
+        </div>
+    `;
+
+    const res = await api.student.listMySelections();
+    if (!res.success) { document.getElementById('myCourseCards').innerHTML = '<div class="col-12 text-danger">加载失败</div>'; return; }
+
+    const confirmed = res.data.filter(s => s.status === 'confirmed');
+    if (confirmed.length === 0) {
+        document.getElementById('myCourseCards').innerHTML = '<div class="col-12 text-muted">暂无中签课程</div>';
+        return;
+    }
+
+    // 获取每门课程的详情
+    const cards = document.getElementById('myCourseCards');
+    cards.innerHTML = '';
+    for (const sel of confirmed) {
+        const cRes = await api.student.getCourseDetail(sel.course_id);
+        if (!cRes.success) continue;
+        const c = cRes.course;
+
+        // 获取课件列表
+        const matRes = await api.student.listCourseMaterials(c.id);
+        const matCount = (matRes.success && matRes.data) ? matRes.data.length : 0;
+
+        cards.innerHTML += `
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h6 class="card-title">${c.name}</h6>
+                        <p class="card-text small text-muted">${(c.description || '').substring(0, 80)}</p>
+                        <p class="mb-1"><small>学分: ${c.credits} | 教师ID: ${c.teacher_id}</small></p>
+                        <p class="mb-2">
+                            ${matCount > 0
+                                ? '<span class="badge bg-success"><i class="bi bi-paperclip"></i> ' + matCount + ' 个课件</span>'
+                                : '<span class="text-muted">暂无课件</span>'}
+                        </p>
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="showCourseDetailModal(${c.id})">
+                            <i class="bi bi-eye"></i> 查看详情与课件
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
 }
 
 
