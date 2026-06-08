@@ -323,7 +323,7 @@ async function refreshCourseCards() {
                     <div class="card-body">
                         <h6 class="card-title">${c.name}</h6>
                         <p class="card-text small text-muted">${(c.description || '').substring(0, 60)}</p>
-                        <p class="mb-0"><small>学分: ${c.credits} | ${c.selection_count || 0}/${c.max_students}人</small></p>
+                        <p class="mb-0"><small>学分: ${c.credits} | 教师: ${c.teacher_name || c.teacher_id} | ${c.selection_count || 0}/${c.max_students}人</small></p>
                         <p class="mb-0"><small>先修: ${Array.isArray(c.prerequisites) && c.prerequisites.length > 0 ? c.prerequisites.join(',') : '无'}</small></p>
                     </div>
                 </div>
@@ -385,7 +385,7 @@ async function showCourseDetailModal(courseId) {
     document.getElementById('courseDetailBody').innerHTML = `
         <p><strong>课程描述：</strong>${c.description || '暂无'}</p>
         <p><strong>课程介绍：</strong>${c.syllabus || '暂无'}</p>
-        <p><strong>学分：</strong>${c.credits} | <strong>限选人数：</strong>${c.max_students} | <strong>已选人数：</strong>${c.selection_count || 0}</p>
+        <p><strong>教师：</strong>${c.teacher_name || '-'} | <strong>学分：</strong>${c.credits} | <strong>限选人数：</strong>${c.max_students} | <strong>已选人数：</strong>${c.selection_count || 0}</p>
         <p><strong>先修课程：</strong>${Array.isArray(c.prerequisites) && c.prerequisites.length > 0 ? c.prerequisites.join(', ') : '无'}</p>
         ${materialHtml}
     `;
@@ -500,7 +500,7 @@ async function renderMyCourses(container) {
                     <div class="card-body">
                         <h6 class="card-title">${c.name}</h6>
                         <p class="card-text small text-muted">${(c.description || '').substring(0, 80)}</p>
-                        <p class="mb-1"><small>学分: ${c.credits} | 教师ID: ${c.teacher_id}</small></p>
+                        <p class="mb-1"><small>学分: ${c.credits} | 教师: ${c.teacher_name || c.teacher_id}</small></p>
                         <p class="mb-2">
                             ${matCount > 0
                                 ? '<span class="badge bg-success"><i class="bi bi-paperclip"></i> ' + matCount + ' 个课件</span>'

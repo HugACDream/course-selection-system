@@ -82,7 +82,11 @@ class Grade:
     def save(self):
         db = get_db()
         cursor = db.execute(
-            'INSERT OR REPLACE INTO grades (student_id, course_id, score, grade_point, recorded_by) '
+            'DELETE FROM grades WHERE student_id = ? AND course_id = ?',
+            (self.student_id, self.course_id)
+        )
+        cursor = db.execute(
+            'INSERT INTO grades (student_id, course_id, score, grade_point, recorded_by) '
             'VALUES (?, ?, ?, ?, ?)',
             (self.student_id, self.course_id, self.score, self.grade_point, self.recorded_by)
         )

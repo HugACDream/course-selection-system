@@ -130,6 +130,39 @@ def upload_course_material(course_id):
     })
 
 
+@teacher_bp.route('/courses/<int:course_id>/materials', methods=['GET'])
+def list_course_materials(course_id):
+    teacher_id, err, resp = teacher_required()
+    if err:
+        return resp
+
+    course = Course.find_by_id(course_id)
+    if not course or course.teacher_id != teacher_id:
+        return jsonify({'success': False, 'message': '课程不存在或不属于您'})
+
+    materials = CourseMaterial.find_by_course(course_id)
+    return jsonify({'success': True, 'data': [m.to_dict() for m in materials]})
+
+
+@teacher_bp.route('/materials/<int:material_id>', methods=['DELETE'])
+def delete_course_material(material_id):
+    teacher_id, err, resp = teacher_required()
+    if err:
+        return resp
+
+    material = CourseMaterial.find_by_id(material_id)
+    if not material:
+        return jsonify({'success': False, 'message': '课件不存在'})
+
+    # 校验课件所属课程是否属于该教师
+    course = Course.find_by_id(material.course_id)
+    if not course or course.teacher_id != teacher_id:
+        return jsonify({'success': False, 'message': '无权限删除该课件'})
+
+    material.delete()
+    return jsonify({'success': True, 'message': '删除成功'})
+
+
 # ============================================================
 # 中签学生查询（需求6: 查询选修自己课程的所有中签学生名单）
 # ============================================================

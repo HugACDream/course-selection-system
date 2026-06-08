@@ -87,6 +87,22 @@
     </div>
 </div>
 
+<!-- 课件管理模态框 -->
+<div class="modal fade" id="materialsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="materialsModalTitle">课件管理</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="materialsModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="../js/api.js"></script>
 <script>
@@ -204,14 +220,20 @@ async function renderMyCourses(container) {
                     <p class="mb-1"><small>学分: ${c.credits} | 限选: ${c.max_students}人 | 已选: ${c.selection_count || 0}人</small></p>
                     <p class="mb-2"><small>先修课程: ${Array.isArray(c.prerequisites) && c.prerequisites.length > 0 ? c.prerequisites.join(',') : '无'}</small></p>
                     <button class="btn btn-sm btn-outline-primary me-1 btn-edit-course" data-course='${JSON.stringify(c).replace(/"/g, '&quot;')}'>编辑</button>
+                    <button class="btn btn-sm btn-outline-info me-1 btn-view-materials" data-course-id="${c.id}" data-course-name="${c.name.replace(/"/g, '&quot;')}">查看课件</button>
                     <button class="btn btn-sm btn-outline-success" onclick="uploadMaterialPrompt(${c.id})">上传课件</button>
                 </div>
             </div>
         </div>
     `).join('');
 
-    // 事件委托: 编辑课程按钮
+    // 事件委托: 编辑 / 查看课件
     document.getElementById('courseCards').addEventListener('click', function(e) {
+        const matBtn = e.target.closest('.btn-view-materials');
+        if (matBtn) {
+            showMaterialsModal(parseInt(matBtn.dataset.courseId), matBtn.dataset.courseName);
+            return;
+        }
         const btn = e.target.closest('.btn-edit-course');
         if (!btn) return;
         const course = JSON.parse(btn.dataset.course);
@@ -264,6 +286,61 @@ function uploadMaterialPrompt(courseId) {
         showAlert(res.message);
     };
     input.click();
+}
+
+async function showMaterialsModal(courseId, courseName) {
+    document.getElementById('materialsModalTitle').textContent = '课件管理 - ' + courseName;
+    const body = document.getElementById('materialsModalBody');
+    body.innerHTML = '<p class="text-muted">加载中...</p>';
+    const modal = new bootstrap.Modal(document.getElementById('materialsModal'));
+    modal.show();
+
+    const res = await api.teacher.listMaterials(courseId);
+    if (!res.success) {
+        body.innerHTML = `<div class="alert alert-danger">${res.message}</div>`;
+        return;
+    }
+    if (res.data.length === 0) {
+        body.innerHTML = '<p class="text-muted">暂无课件</p>';
+        return;
+    }
+    body.innerHTML = `
+        <table class="table table-hover">
+            <thead class="table-light"><tr><th>文件名</th><th>大小</th><th>上传时间</th><th>操作</th></tr></thead>
+            <tbody>
+                ${res.data.map(m => `
+                    <tr>
+                        <td>${m.filename}</td>
+                        <td>${formatFileSize(m.file_size)}</td>
+                        <td>${m.uploaded_at || '-'}</td>
+                        <td>
+                            <a class="btn btn-sm btn-outline-primary me-1" href="/uploads/course_${courseId}/${m.filename}" target="_blank" download>下载</a>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteMaterial(${m.id}, ${courseId}, '${courseName.replace(/'/g, "\\'")}')">删除</button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+function formatFileSize(bytes) {
+    if (!bytes) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let i = 0, size = bytes;
+    while (size >= 1024 && i < units.length - 1) { size /= 1024; i++; }
+    return size.toFixed(1) + ' ' + units[i];
+}
+
+async function deleteMaterial(materialId, courseId, courseName) {
+    if (!confirm('确认删除该课件？')) return;
+    const res = await api.teacher.deleteMaterial(materialId);
+    if (res.success) {
+        showAlert('删除成功');
+        showMaterialsModal(courseId, courseName);
+    } else {
+        showAlert(res.message);
+    }
 }
 
 
@@ -360,8 +437,8 @@ async function renderGradeEntry(container) {
             tbody.innerHTML = sRes.data.map(s => `
                 <tr>
                     <td>${s.username}</td><td>${s.name}</td>
-                    <td><input class="form-control form-control-sm score-input" type="number" min="0" max="100" data-student-id="${s.id}" value="${existingGrades[s.id] != null ? existingGrades[s.id] : ''}"></td>
-                    <td class="gp-cell" id="gp_${s.id}">${existingGrades[s.id] != null ? calcGPA(existingGrades[s.id]).toFixed(1) : '-'}</td>
+                    <td><input class="form-control form-control-sm score-input" type="number" min="0" max="100" data-student-id="${s.student_id}" value="${existingGrades[s.student_id] != null ? existingGrades[s.student_id] : ''}"></td>
+                    <td class="gp-cell" id="gp_${s.student_id}">${existingGrades[s.student_id] != null ? calcGPA(existingGrades[s.student_id]).toFixed(1) : '-'}</td>
                 </tr>
             `).join('');
 
@@ -454,15 +531,16 @@ async function renderGradeStats(container) {
 
         // 分数段分布
         const ranges = [
-            { label: '90-100 (优秀)', key: 'range_90_100' },
-            { label: '80-89 (良好)', key: 'range_80_89' },
-            { label: '70-79 (中等)', key: 'range_70_79' },
-            { label: '60-69 (及格)', key: 'range_60_69' },
-            { label: '0-59 (不及格)', key: 'range_0_59' },
+            { label: '90-100 (优秀)', key: '90-100' },
+            { label: '80-89 (良好)', key: '80-89' },
+            { label: '70-79 (中等)', key: '70-79' },
+            { label: '60-69 (及格)', key: '60-69' },
+            { label: '0-59 (不及格)', key: '0-59' },
         ];
-        const total = stats.total_count || 0;
+        const dist = stats.score_distribution || {};
+        const total = stats.total || 0;
         document.getElementById('gradeStatsBody').innerHTML = ranges.map(r => {
-            const count = stats[r.key] || 0;
+            const count = dist[r.key] || 0;
             const pct = total > 0 ? ((count / total) * 100).toFixed(1) : '0.0';
             return `<tr><td>${r.label}</td><td>${count}</td><td>${pct}%</td></tr>`;
         }).join('');
@@ -475,7 +553,7 @@ async function renderGradeStats(container) {
                 <strong>平均分：</strong>${stats.avg_score != null ? stats.avg_score.toFixed(1) : '-'} &nbsp;
                 <strong>最高分：</strong>${stats.max_score != null ? stats.max_score : '-'} &nbsp;
                 <strong>最低分：</strong>${stats.min_score != null ? stats.min_score : '-'} &nbsp;
-                <strong>及格率：</strong>${stats.pass_rate != null ? (stats.pass_rate * 100).toFixed(1) + '%' : '-'}
+                <strong>及格率：</strong>${stats.pass_rate != null ? stats.pass_rate.toFixed(1) + '%' : '-'}
             </div>
         `;
 
@@ -488,7 +566,7 @@ async function renderGradeStats(container) {
                 labels: ranges.map(r => r.label),
                 datasets: [{
                     label: '人数',
-                    data: ranges.map(r => stats[r.key] || 0),
+                    data: ranges.map(r => dist[r.key] || 0),
                     backgroundColor: ['#198754', '#0d6efd', '#ffc107', '#fd7e14', '#dc3545'],
                 }]
             },

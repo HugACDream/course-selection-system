@@ -20,6 +20,7 @@ class Course:
         self.prerequisites = []      # 先修课程id列表
         self.syllabus = ''           # 课程介绍
         self.course_material_path = ''
+        self.teacher_name = None
         if row:
             self._from_row(row)
 
@@ -34,6 +35,7 @@ class Course:
         self.prerequisites = json.loads(row['prerequisites'] or '[]')
         self.syllabus = row['syllabus'] or ''
         self.course_material_path = row['course_material_path'] or ''
+        self.teacher_name = row['teacher_name'] if 'teacher_name' in row.keys() else None
 
     def to_dict(self):
         return {
@@ -42,6 +44,7 @@ class Course:
             'description': self.description,
             'credits': self.credits,
             'teacher_id': self.teacher_id,
+            'teacher_name': self.teacher_name,
             'college_id': self.college_id,
             'max_students': self.max_students,
             'prerequisites': self.prerequisites,
@@ -54,7 +57,10 @@ class Course:
     @staticmethod
     def find_by_id(course_id):
         db = get_db()
-        row = db.execute('SELECT * FROM courses WHERE id = ?', (course_id,)).fetchone()
+        row = db.execute(
+            'SELECT c.*, u.name as teacher_name FROM courses c '
+            'JOIN users u ON c.teacher_id = u.id WHERE c.id = ?', (course_id,)
+        ).fetchone()
         if row:
             return Course(row)
         return None
@@ -79,13 +85,14 @@ class Course:
         where_clause = ' WHERE ' + ' AND '.join(conditions) if conditions else ''
 
         count_row = db.execute(
-            f'SELECT COUNT(*) as cnt FROM courses{where_clause}', params
+            f'SELECT COUNT(*) as cnt FROM courses c{where_clause}', params
         ).fetchone()
         total = count_row['cnt']
 
         offset = (page - 1) * page_size
         rows = db.execute(
-            f'SELECT * FROM courses{where_clause} ORDER BY id LIMIT ? OFFSET ?',
+            f'SELECT c.*, u.name as teacher_name FROM courses c '
+            f'JOIN users u ON c.teacher_id = u.id{where_clause} ORDER BY c.id LIMIT ? OFFSET ?',
             params + [page_size, offset]
         ).fetchall()
 

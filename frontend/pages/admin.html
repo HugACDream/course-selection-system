@@ -305,13 +305,15 @@ async function refreshStudentTable() {
     renderPagination('studentPagination', studentPage, res.data.total, studentPageSize, (p) => { studentPage = p; refreshStudentTable(); });
 }
 
-function showAddStudentForm() {
+async function showAddStudentForm() {
+    const cRes = await api.admin.listColleges();
+    const collegeOpts = cRes.success ? cRes.data.map(c => `<option value="${c.id}">${c.name}</option>`).join('') : '';
     document.getElementById('formModalTitle').textContent = '新增学生';
     document.getElementById('formModalBody').innerHTML = `
         <div class="mb-3"><label class="form-label">学号</label><input class="form-control" id="f_username"></div>
         <div class="mb-3"><label class="form-label">密码</label><input class="form-control" type="password" id="f_password"></div>
         <div class="mb-3"><label class="form-label">姓名</label><input class="form-control" id="f_name"></div>
-        <div class="mb-3"><label class="form-label">学院ID</label><input class="form-control" id="f_college_id" placeholder="可选"></div>
+        <div class="mb-3"><label class="form-label">所属学院</label><select class="form-select" id="f_college_id"><option value="">-- 请选择 --</option>${collegeOpts}</select></div>
         <div class="mb-3"><label class="form-label">邮箱</label><input class="form-control" id="f_email"></div>
         <div class="mb-3"><label class="form-label">电话</label><input class="form-control" id="f_phone"></div>
     `;
@@ -333,13 +335,14 @@ function showAddStudentForm() {
 }
 
 async function showEditStudentForm(id) {
-    const res = await api.admin.getStudent(id);
-    if (!res.success) { showAlert(res.message); return; }
-    const u = res.user;
+    const [stuRes, cRes] = await Promise.all([api.admin.getStudent(id), api.admin.listColleges()]);
+    if (!stuRes.success) { showAlert(stuRes.message); return; }
+    const u = stuRes.user;
+    const collegeOpts = cRes.success ? cRes.data.map(c => `<option value="${c.id}" ${c.id === u.college_id ? 'selected' : ''}>${c.name}</option>`).join('') : '';
     document.getElementById('formModalTitle').textContent = '编辑学生';
     document.getElementById('formModalBody').innerHTML = `
         <div class="mb-3"><label class="form-label">姓名</label><input class="form-control" id="f_name" value="${u.name}"></div>
-        <div class="mb-3"><label class="form-label">学院ID</label><input class="form-control" id="f_college_id" value="${u.college_id || ''}"></div>
+        <div class="mb-3"><label class="form-label">所属学院</label><select class="form-select" id="f_college_id"><option value="">-- 请选择 --</option>${collegeOpts}</select></div>
         <div class="mb-3"><label class="form-label">邮箱</label><input class="form-control" id="f_email" value="${u.email || ''}"></div>
         <div class="mb-3"><label class="form-label">电话</label><input class="form-control" id="f_phone" value="${u.phone || ''}"></div>
     `;

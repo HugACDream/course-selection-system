@@ -131,6 +131,8 @@ const api = {
         getCourseDetail: (id) => api.get('/teacher/courses/' + id),
         updateCourse: (id, data) => api.put('/teacher/courses/' + id, data),
         uploadMaterial: (courseId, formData) => api.upload('/teacher/courses/' + courseId + '/upload-material', formData),
+        listMaterials: (courseId) => api.get('/teacher/courses/' + courseId + '/materials'),
+        deleteMaterial: (materialId) => api.delete('/teacher/materials/' + materialId),
 
         // 中签学生
         getConfirmedStudents: (courseId) => api.get('/teacher/courses/' + courseId + '/confirmed-students'),

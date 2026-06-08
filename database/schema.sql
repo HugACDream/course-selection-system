@@ -72,6 +72,8 @@ CREATE TABLE IF NOT EXISTS grades (
     UNIQUE(student_id, course_id)
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_grades_student_course ON grades(student_id, course_id);
+
 -- 课件表（支持多文件）
 CREATE TABLE IF NOT EXISTS course_materials (
     id INTEGER PRIMARY KEY,
