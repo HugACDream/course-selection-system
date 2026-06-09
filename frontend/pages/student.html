@@ -291,7 +291,7 @@ async function renderCourseSelection(container) {
 
     // 加载学院列表
     try {
-        const resp = await fetch('/api/admin/colleges');
+        const resp = await fetch('/api/student/colleges');
         const colRes = await resp.json();
         if (colRes.success && colRes.data) {
             const sel = document.getElementById('collegeFilter');

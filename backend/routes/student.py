@@ -58,6 +58,20 @@ def update_profile():
     return jsonify({'success': True, 'message': '修改成功', 'user': user.to_dict()})
 
 # ============================================================
+# 学院列表
+# ============================================================
+
+@student_bp.route('/colleges', methods=['GET'])
+def list_colleges():
+    student_id, err, resp = student_required()
+    if err:
+        return resp
+    db = get_db()
+    rows = db.execute('SELECT * FROM colleges ORDER BY id').fetchall()
+    return jsonify({'success': True, 'data': [{'id': r['id'], 'name': r['name']} for r in rows]})
+
+
+# ============================================================
 # 课程浏览（需求11: 浏览课程信息）
 # ============================================================
 
@@ -70,8 +84,9 @@ def list_courses():
     page = request.args.get('page', 1, type=int)
     page_size = request.args.get('page_size', 20, type=int)
     college_id = request.args.get('college_id', None, type=int)
+    keyword = request.args.get('keyword', '', type=str)
 
-    courses, total = Course.find_all(college_id=college_id, page=page, page_size=page_size)
+    courses, total = Course.find_all(college_id=college_id, keyword=keyword, page=page, page_size=page_size)
     course_list = []
     for c in courses:
         d = c.to_dict()
