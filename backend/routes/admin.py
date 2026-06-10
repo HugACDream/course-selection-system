@@ -557,6 +557,131 @@ def delete_grade(grade_id):
 
 
 # ============================================================
+# 选课记录管理 CRUD
+# ============================================================
+
+@admin_bp.route('/selections', methods=['GET'])
+def list_selections():
+    err = admin_required()
+    if err:
+        return err
+
+    db = get_db()
+    page = request.args.get('page', 1, type=int)
+    page_size = request.args.get('page_size', 20, type=int)
+    student_name = request.args.get('student_name', '', type=str)
+    course_name = request.args.get('course_name', '', type=str)
+
+    conditions = []
+    params = []
+    if student_name:
+        conditions.append('(u.name LIKE ? OR u.username LIKE ?)')
+        params.extend([f'%{student_name}%', f'%{student_name}%'])
+    if course_name:
+        conditions.append('c.name LIKE ?')
+        params.append(f'%{course_name}%')
+
+    where_clause = ' WHERE ' + ' AND '.join(conditions) if conditions else ''
+
+    count_row = db.execute(
+        f'SELECT COUNT(*) as cnt FROM course_selections cs '
+        f'JOIN users u ON cs.student_id = u.id '
+        f'JOIN courses c ON cs.course_id = c.id '
+        f'{where_clause}', params
+    ).fetchone()
+    total = count_row['cnt']
+
+    offset = (page - 1) * page_size
+    rows = db.execute(
+        f'SELECT cs.*, u.name as student_name, u.username as student_username, '
+        f'c.name as course_name '
+        f'FROM course_selections cs '
+        f'JOIN users u ON cs.student_id = u.id '
+        f'JOIN courses c ON cs.course_id = c.id '
+        f'{where_clause} ORDER BY cs.id LIMIT ? OFFSET ?',
+        params + [page_size, offset]
+    ).fetchall()
+
+    items = [dict(r) for r in rows]
+    return jsonify({
+        'success': True,
+        'data': {'items': items, 'total': total, 'page': page, 'page_size': page_size}
+    })
+
+
+@admin_bp.route('/selections', methods=['POST'])
+def create_selection():
+    err = admin_required()
+    if err:
+        return err
+
+    data = request.get_json()
+    student_id = data.get('student_id')
+    course_id = data.get('course_id')
+    status = data.get('status', 'pending')
+
+    if not student_id or not course_id:
+        return jsonify({'success': False, 'message': '学生ID和课程ID不能为空'})
+
+    student = User.find_by_id(student_id)
+    if not student or student.role != 'student':
+        return jsonify({'success': False, 'message': '指定的学生不存在'})
+    course = Course.find_by_id(course_id)
+    if not course:
+        return jsonify({'success': False, 'message': '指定的课程不存在'})
+
+    if CourseSelection.check_exists(student_id, course_id):
+        return jsonify({'success': False, 'message': '该学生已选此课程'})
+
+    try:
+        selection = CourseSelection()
+        selection.student_id = student_id
+        selection.course_id = course_id
+        selection.status = status
+        selection.save()
+        return jsonify({'success': True, 'message': '创建成功', 'selection': selection.to_dict()})
+    except Exception as e:
+        get_db().rollback()
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'})
+
+
+@admin_bp.route('/selections/<int:selection_id>', methods=['PUT'])
+def update_selection(selection_id):
+    err = admin_required()
+    if err:
+        return err
+
+    selection = CourseSelection.find_by_id(selection_id)
+    if not selection:
+        return jsonify({'success': False, 'message': '选课记录不存在'})
+
+    data = request.get_json()
+    try:
+        new_status = data.get('status', selection.status)
+        if new_status not in ('pending', 'confirmed', 'cancelled'):
+            return jsonify({'success': False, 'message': '状态值无效'})
+        selection.update_status(new_status)
+        return jsonify({'success': True, 'message': '修改成功', 'selection': selection.to_dict()})
+    except Exception as e:
+        get_db().rollback()
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'})
+
+
+@admin_bp.route('/selections/<int:selection_id>', methods=['DELETE'])
+def delete_selection(selection_id):
+    err = admin_required()
+    if err:
+        return err
+
+    selection = CourseSelection.find_by_id(selection_id)
+    if not selection:
+        return jsonify({'success': False, 'message': '选课记录不存在'})
+
+    selection.delete()
+    return jsonify({'success': True, 'message': '删除成功'})
+
+
+# ============================================================
 # 学院管理
 # ============================================================
 

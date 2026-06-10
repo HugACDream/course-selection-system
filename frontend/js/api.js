@@ -80,6 +80,12 @@ const api = {
         listColleges: () => api.get('/admin/colleges'),
         createCollege: (data) => api.post('/admin/colleges', data),
 
+        // 选课记录CRUD
+        listSelections: (params) => api.get('/admin/selections?' + new URLSearchParams(params)),
+        createSelection: (data) => api.post('/admin/selections', data),
+        updateSelection: (id, data) => api.put('/admin/selections/' + id, data),
+        deleteSelection: (id) => api.delete('/admin/selections/' + id),
+
         // 选课统计（需求2）
         getCourseSelectionStats: () => api.get('/admin/statistics/course-selection'),
         exportStats: () => api.get('/admin/statistics/course-selection/export'),

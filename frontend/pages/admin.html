@@ -46,6 +46,11 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="selections">
+                        <i class="bi bi-check2-square"></i> 选课管理
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link" href="#" data-page="colleges">
                         <i class="bi bi-diagram-3"></i> 学院管理
                     </a>
@@ -144,6 +149,7 @@ function renderPage(page) {
         case 'teachers':      loadTeacherList(container); break;
         case 'courses':       loadCourseList(container); break;
         case 'grades':        loadGradeList(container); break;
+        case 'selections':    loadSelectionList(container); break;
         case 'colleges':      loadCollegeList(container); break;
         case 'statistics':    loadStatistics(container); break;
     }
@@ -779,7 +785,162 @@ function confirmDeleteGrade(id) {
 
 
 // ============================================================
-// 6. 学院管理
+// 6. 选课管理
+// ============================================================
+
+let selectionPage = 1, selectionPageSize = 20;
+
+async function loadSelectionList(container) {
+    container.innerHTML = `
+        <h4 class="mb-3"><i class="bi bi-check2-square"></i> 选课管理</h4>
+        <div class="card"><div class="card-body">
+            <div class="row g-2 mb-3">
+                <div class="col-md-2"><input class="form-control" id="selStudentFilter" placeholder="学生姓名/学号"></div>
+                <div class="col-md-2"><input class="form-control" id="selCourseFilter" placeholder="课程名称"></div>
+                <div class="col-md-auto">
+                    <button class="btn btn-outline-secondary" id="btnSearchSel"><i class="bi bi-search"></i> 查询</button>
+                </div>
+                <div class="col-md-auto ms-auto">
+                    <button class="btn btn-primary" id="btnAddSel"><i class="bi bi-plus-circle"></i> 新增选课</button>
+                </div>
+            </div>
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr><th>ID</th><th>学生</th><th>课程</th><th>状态</th><th>选课时间</th><th>操作</th></tr>
+                </thead>
+                <tbody id="selTableBody"></tbody>
+            </table>
+            <nav id="selPagination"></nav>
+        </div></div>
+    `;
+
+    document.getElementById('btnSearchSel').addEventListener('click', () => { selectionPage = 1; refreshSelTable(); });
+    document.getElementById('btnAddSel').addEventListener('click', showAddSelForm);
+    refreshSelTable();
+}
+
+async function refreshSelTable() {
+    const student_name = document.getElementById('selStudentFilter').value.trim();
+    const course_name = document.getElementById('selCourseFilter').value.trim();
+    const params = { page: selectionPage, page_size: selectionPageSize };
+    if (student_name) params.student_name = student_name;
+    if (course_name) params.course_name = course_name;
+    const res = await api.admin.listSelections(params);
+    const tbody = document.getElementById('selTableBody');
+    if (!res.success) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">加载失败</td></tr>'; return; }
+    const items = res.data.items;
+    if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">暂无数据</td></tr>';
+    } else {
+        const statusMap = { pending: '待抽签', confirmed: '中签', cancelled: '未中签' };
+        const statusColors = { pending: 'warning', confirmed: 'success', cancelled: 'secondary' };
+        tbody.innerHTML = items.map(s => `
+            <tr>
+                <td>${s.id}</td><td>${s.student_name || s.student_id}</td><td>${s.course_name || s.course_id}</td>
+                <td><span class="badge bg-${statusColors[s.status] || 'secondary'}">${statusMap[s.status] || s.status}</span></td>
+                <td>${s.selected_at || '-'}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary me-1" onclick="showEditSelForm(${s.id})">编辑</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteSel(${s.id})">删除</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+    renderPagination('selPagination', selectionPage, res.data.total, selectionPageSize, (p) => { selectionPage = p; refreshSelTable(); });
+}
+
+async function showAddSelForm() {
+    const [stuRes, cRes] = await Promise.all([
+        api.admin.listStudents({ page_size: 100 }),
+        api.admin.listCourses({ page_size: 100 })
+    ]);
+    const allStudents = stuRes.success ? stuRes.data.items : [];
+    const courseOpts = cRes.success ? cRes.data.items.map(c =>
+        `<option value="${c.id}">${c.name}</option>`
+    ).join('') : '';
+
+    function renderStudentOptions(filter) {
+        const kw = (filter || '').toLowerCase();
+        const filtered = allStudents.filter(s =>
+            s.name.toLowerCase().includes(kw) || s.username.toLowerCase().includes(kw)
+        );
+        if (filtered.length === 0) {
+            return '<option value="" disabled>无匹配学生</option>';
+        }
+        return filtered.map(s => `<option value="${s.id}">${s.name} (${s.username})</option>`).join('');
+    }
+
+    document.getElementById('formModalTitle').textContent = '新增选课';
+    document.getElementById('formModalBody').innerHTML = `
+        <div class="mb-3"><label class="form-label">学生</label>
+            <input class="form-control mb-2" id="f_student_search" placeholder="输入姓名或学号搜索...">
+            <select class="form-select" id="f_student_id" size="5">${renderStudentOptions('')}</select></div>
+        <div class="mb-3"><label class="form-label">课程</label>
+            <select class="form-select" id="f_course_id"><option value="">-- 请选择 --</option>${courseOpts}</select></div>
+        <div class="mb-3"><label class="form-label">状态</label>
+            <select class="form-select" id="f_status">
+                <option value="pending">待抽签</option>
+                <option value="confirmed">中签</option>
+                <option value="cancelled">未中签</option>
+            </select>
+        </div>
+    `;
+
+    document.getElementById('f_student_search').addEventListener('input', function() {
+        document.getElementById('f_student_id').innerHTML = renderStudentOptions(this.value);
+    });
+
+    const modal = new bootstrap.Modal(document.getElementById('formModal'));
+    document.getElementById('btnFormSave').onclick = async function() {
+        const data = {
+            student_id: parseInt(document.getElementById('f_student_id').value) || null,
+            course_id: parseInt(document.getElementById('f_course_id').value) || null,
+            status: document.getElementById('f_status').value,
+        };
+        if (!data.student_id || !data.course_id) { showAlert('请选择学生和课程'); return; }
+        const res = await api.admin.createSelection(data);
+        if (res.success) { modal.hide(); refreshSelTable(); }
+        showAlert(res.message);
+    };
+    modal.show();
+}
+
+async function showEditSelForm(id) {
+    document.getElementById('formModalTitle').textContent = '编辑选课状态';
+    document.getElementById('formModalBody').innerHTML = `
+        <div class="mb-3"><label class="form-label">状态</label>
+            <select class="form-select" id="f_status">
+                <option value="pending">待抽签</option>
+                <option value="confirmed">中签</option>
+                <option value="cancelled">未中签</option>
+            </select>
+        </div>
+    `;
+    const modal = new bootstrap.Modal(document.getElementById('formModal'));
+    document.getElementById('btnFormSave').onclick = async function() {
+        const data = { status: document.getElementById('f_status').value };
+        const res = await api.admin.updateSelection(id, data);
+        if (res.success) { modal.hide(); refreshSelTable(); }
+        showAlert(res.message);
+    };
+    modal.show();
+}
+
+function confirmDeleteSel(id) {
+    document.getElementById('confirmMessage').textContent = '确定要删除该选课记录吗？';
+    const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    document.getElementById('btnConfirmDelete').onclick = async function() {
+        const res = await api.admin.deleteSelection(id);
+        modal.hide();
+        showAlert(res.message);
+        if (res.success) refreshSelTable();
+    };
+    modal.show();
+}
+
+
+// ============================================================
+// 8. 学院管理
 // ============================================================
 
 async function loadCollegeList(container) {
@@ -833,7 +994,7 @@ function showAddCollegeForm() {
 
 
 // ============================================================
-// 7. 选课统计
+// 9. 选课统计
 // ============================================================
 
 let statisticsChart = null;
