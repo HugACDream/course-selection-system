@@ -391,7 +391,7 @@ async function showCourseDetailModal(courseId) {
     `;
     // 检查是否已选/已中签，决定是否显示"选择此课程"按钮
     const selList = await api.student.listMySelections();
-    const mySel = selList.success ? selList.data.find(s => s.course_id === courseId) : null;
+    const mySel = selList.success ? selList.data.find(s => s.course_id === courseId && s.status !== 'cancelled') : null;
     document.getElementById('btnSelectCourseInModal').style.display = mySel ? 'none' : 'inline-block';
     document.getElementById('btnDownloadMaterialLink').classList.add('d-none');
 

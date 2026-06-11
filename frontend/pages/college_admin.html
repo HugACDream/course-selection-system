@@ -809,7 +809,7 @@ async function loadGradeList(container) {
             <nav id="gradePagination"></nav>
         </div></div>
     `;
-    document.getElementById('btnAddGrade').addEventListener('click', showGradeForm);
+    document.getElementById('btnAddGrade').addEventListener('click', () => showGradeForm());
     refreshGradeTable();
 }
 

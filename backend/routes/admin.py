@@ -16,7 +16,7 @@ admin_bp = Blueprint('admin', __name__)
 
 def admin_required():
     """装饰器：校验当前用户是否为系统管理员"""
-    # TODO: 从 session 获取当前用户，检查 role == 'admin'
+
     user = session.get('user')
     if not user or user.get('role') != 'admin':
         return jsonify({'success': False, 'message': '无权限，需要系统管理员登录'}), 403
@@ -562,18 +562,21 @@ def delete_grade(grade_id):
 
 @admin_bp.route('/selections', methods=['GET'])
 def list_selections():
+    # 权限校验
     err = admin_required()
     if err:
         return err
 
     db = get_db()
+    # 获取前端参数
     page = request.args.get('page', 1, type=int)
-    page_size = request.args.get('page_size', 20, type=int)
+    page_size = request.args.get('page_size', 10, type=int)
     student_name = request.args.get('student_name', '', type=str)
     course_name = request.args.get('course_name', '', type=str)
 
     conditions = []
     params = []
+    # 动态拼接
     if student_name:
         conditions.append('(u.name LIKE ? OR u.username LIKE ?)')
         params.extend([f'%{student_name}%', f'%{student_name}%'])
@@ -581,8 +584,10 @@ def list_selections():
         conditions.append('c.name LIKE ?')
         params.append(f'%{course_name}%')
 
+    # and.join 用and把多个条件连接起来
     where_clause = ' WHERE ' + ' AND '.join(conditions) if conditions else ''
 
+    # 查询总条数
     count_row = db.execute(
         f'SELECT COUNT(*) as cnt FROM course_selections cs '
         f'JOIN users u ON cs.student_id = u.id '
@@ -591,6 +596,7 @@ def list_selections():
     ).fetchone()
     total = count_row['cnt']
 
+    # 分页读取选课数据
     offset = (page - 1) * page_size
     rows = db.execute(
         f'SELECT cs.*, u.name as student_name, u.username as student_username, '
@@ -602,6 +608,7 @@ def list_selections():
         params + [page_size, offset]
     ).fetchall()
 
+    # 返回json
     items = [dict(r) for r in rows]
     return jsonify({
         'success': True,

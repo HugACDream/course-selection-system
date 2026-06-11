@@ -102,7 +102,8 @@ class CourseSelection:
     def save(self):
         db = get_db()
         cursor = db.execute(
-            'INSERT INTO course_selections (student_id, course_id, status) VALUES (?, ?, ?)',
+            'INSERT INTO course_selections (student_id, course_id, status) VALUES (?, ?, ?) '
+            'ON CONFLICT(student_id, course_id) DO UPDATE SET status=excluded.status',
             (self.student_id, self.course_id, self.status)
         )
         db.commit()

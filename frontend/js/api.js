@@ -80,6 +80,7 @@ const api = {
         listColleges: () => api.get('/admin/colleges'),
         createCollege: (data) => api.post('/admin/colleges', data),
 
+        // 111
         // 选课记录CRUD
         listSelections: (params) => api.get('/admin/selections?' + new URLSearchParams(params)),
         createSelection: (data) => api.post('/admin/selections', data),
