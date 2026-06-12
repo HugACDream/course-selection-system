@@ -31,7 +31,7 @@ def college_admin_required():
 def list_teachers():
     college_id, err, resp = college_admin_required()
     if err:
-        return resp
+        return err, resp
 
     page = request.args.get('page', 1, type=int)
     page_size = request.args.get('page_size', 20, type=int)
@@ -56,7 +56,7 @@ def list_teachers():
 def create_teacher():
     college_id, err, resp = college_admin_required()
     if err:
-        return resp
+        return err, resp
 
     data = request.get_json()
     username = data.get('username', '').strip()
@@ -90,7 +90,7 @@ def create_teacher():
 def update_teacher(teacher_id):
     college_id, err, resp = college_admin_required()
     if err:
-        return resp
+        return err, resp
 
     user = User.find_by_id(teacher_id)
     if not user or user.role != 'teacher' or user.college_id != college_id:
@@ -112,7 +112,7 @@ def update_teacher(teacher_id):
 def delete_teacher(teacher_id):
     college_id, err, resp = college_admin_required()
     if err:
-        return resp
+        return err, resp
 
     user = User.find_by_id(teacher_id)
     if not user or user.role != 'teacher' or user.college_id != college_id:
@@ -129,7 +129,7 @@ def delete_teacher(teacher_id):
 def list_students():
     college_id, err, resp = college_admin_required()
     if err:
-        return resp
+        return err, resp
 
     page = request.args.get('page', 1, type=int)
     page_size = request.args.get('page_size', 20, type=int)
@@ -154,7 +154,7 @@ def list_students():
 def create_student():
     college_id, err, resp = college_admin_required()
     if err:
-        return resp
+        return err, resp
 
     data = request.get_json()
     username = data.get('username', '').strip()
@@ -187,7 +187,7 @@ def create_student():
 def update_student(student_id):
     college_id, err, resp = college_admin_required()
     if err:
-        return resp
+        return err, resp
 
     user = User.find_by_id(student_id)
     if not user or user.role != 'student' or user.college_id != college_id:
@@ -209,7 +209,7 @@ def update_student(student_id):
 def delete_student(student_id):
     college_id, err, resp = college_admin_required()
     if err:
-        return resp
+        return err, resp
 
     user = User.find_by_id(student_id)
     if not user or user.role != 'student' or user.college_id != college_id:
@@ -227,7 +227,7 @@ def delete_student(student_id):
 def list_courses():
     college_id, err, resp = college_admin_required()
     if err:
-        return resp
+        return err, resp
 
     page = request.args.get('page', 1, type=int)
     page_size = request.args.get('page_size', 20, type=int)
@@ -251,7 +251,7 @@ def list_courses():
 def create_course():
     college_id, err, resp = college_admin_required()
     if err:
-        return resp
+        return err, resp
 
     data = request.get_json()
     name = data.get('name', '').strip()
@@ -295,7 +295,7 @@ def create_course():
 def update_course(course_id):
     college_id, err, resp = college_admin_required()
     if err:
-        return resp
+        return err, resp
 
     course = Course.find_by_id(course_id)
     if not course or course.college_id != college_id:
@@ -335,7 +335,7 @@ def update_course(course_id):
 def delete_course(course_id):
     college_id, err, resp = college_admin_required()
     if err:
-        return resp
+        return err, resp
 
     course = Course.find_by_id(course_id)
     if not course or course.college_id != college_id:
@@ -353,14 +353,14 @@ def delete_course(course_id):
 def list_selections():
     college_id, err, resp = college_admin_required()
     if err:
-        return resp
+        return err, resp
 
     db = get_db()
     page = request.args.get('page', 1, type=int)
     page_size = request.args.get('page_size', 20, type=int)
     course_id = request.args.get('course_id', None, type=int)
 
-    conditions = ['u.college_id = ?']
+    conditions = ['c.college_id = ?']
     params = [college_id]
     if course_id:
         conditions.append('cs.course_id = ?')
@@ -370,7 +370,7 @@ def list_selections():
 
     count_row = db.execute(
         f'SELECT COUNT(*) as cnt FROM course_selections cs '
-        f'JOIN users u ON cs.student_id = u.id{where_clause}', params
+        f'JOIN courses c ON cs.course_id = c.id{where_clause}', params
     ).fetchone()
     total = count_row['cnt']
 
@@ -391,6 +391,52 @@ def list_selections():
         'data': {'items': items, 'total': total, 'page': page, 'page_size': page_size}
     })
 
+
+@college_admin_bp.route('/selections/<int:selection_id>', methods=['PUT'])
+def update_selection(selection_id):
+    college_id, err, resp = college_admin_required()
+    if err:
+        return err, resp
+
+    selection = CourseSelection.find_by_id(selection_id)
+    if not selection:
+        return jsonify({'success': False, 'message': '选课记录不存在'})
+
+    course = Course.find_by_id(selection.course_id)
+    if not course or course.college_id != college_id:
+        return jsonify({'success': False, 'message': '选课记录不属于本学院'})
+
+    data = request.get_json()
+    new_status = data.get('status', selection.status)
+    if new_status not in ('pending', 'confirmed', 'cancelled'):
+        return jsonify({'success': False, 'message': '状态值无效'})
+
+    try:
+        selection.update_status(new_status)
+        return jsonify({'success': True, 'message': '修改成功', 'selection': selection.to_dict()})
+    except Exception as e:
+        get_db().rollback()
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'})
+
+
+@college_admin_bp.route('/selections/<int:selection_id>', methods=['DELETE'])
+def delete_selection(selection_id):
+    college_id, err, resp = college_admin_required()
+    if err:
+        return err, resp
+
+    selection = CourseSelection.find_by_id(selection_id)
+    if not selection:
+        return jsonify({'success': False, 'message': '选课记录不存在'})
+
+    course = Course.find_by_id(selection.course_id)
+    if not course or course.college_id != college_id:
+        return jsonify({'success': False, 'message': '选课记录不属于本学院'})
+
+    selection.delete()
+    return jsonify({'success': True, 'message': '删除成功'})
+
+
 # ============================================================
 # 本学院成绩管理（需求3）
 # ============================================================
@@ -399,7 +445,7 @@ def list_selections():
 def list_grades():
     college_id, err, resp = college_admin_required()
     if err:
-        return resp
+        return err, resp
 
     db = get_db()
     page = request.args.get('page', 1, type=int)
@@ -432,7 +478,7 @@ def list_grades():
 def create_grade():
     college_id, err, resp = college_admin_required()
     if err:
-        return resp
+        return err, resp
 
     data = request.get_json()
     student_id = data.get('student_id')
@@ -480,7 +526,7 @@ def create_grade():
 def update_grade(grade_id):
     college_id, err, resp = college_admin_required()
     if err:
-        return resp
+        return err, resp
 
     grade = Grade.find_by_id(grade_id)
     if not grade:
@@ -516,7 +562,7 @@ def update_grade(grade_id):
 def delete_grade(grade_id):
     college_id, err, resp = college_admin_required()
     if err:
-        return resp
+        return err, resp
 
     grade = Grade.find_by_id(grade_id)
     if not grade:
@@ -538,7 +584,7 @@ def delete_grade(grade_id):
 def lottery(course_id):
     college_id, err, resp = college_admin_required()
     if err:
-        return resp
+        return err, resp
 
     course = Course.find_by_id(course_id)
     if not course or course.college_id != college_id:
@@ -555,7 +601,7 @@ def lottery(course_id):
 def lottery_result(course_id):
     college_id, err, resp = college_admin_required()
     if err:
-        return resp
+        return err, resp
 
     course = Course.find_by_id(course_id)
     if not course or course.college_id != college_id:
@@ -570,7 +616,7 @@ def lottery_result(course_id):
 def export_lottery_result(course_id):
     college_id, err, resp = college_admin_required()
     if err:
-        return resp
+        return err, resp
 
     course = Course.find_by_id(course_id)
     if not course or course.college_id != college_id:

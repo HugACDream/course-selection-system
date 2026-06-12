@@ -116,6 +116,8 @@ const api = {
 
         // 选课管理
         listSelections: (params) => api.get('/college-admin/selections?' + new URLSearchParams(params)),
+        updateSelection: (id, data) => api.put('/college-admin/selections/' + id, data),
+        deleteSelection: (id) => api.delete('/college-admin/selections/' + id),
 
         // 成绩管理
         listGrades: (params) => api.get('/college-admin/grades?' + new URLSearchParams(params)),

@@ -630,7 +630,7 @@ async function loadSelectionList(container) {
             </div>
             <table class="table table-hover">
                 <thead class="table-light">
-                    <tr><th>ID</th><th>学生</th><th>课程</th><th>状态</th><th>选课时间</th></tr>
+                    <tr><th>ID</th><th>学生</th><th>课程</th><th>状态</th><th>选课时间</th><th>操作</th></tr>
                 </thead>
                 <tbody id="selectionTableBody"></tbody>
             </table>
@@ -658,22 +658,59 @@ async function refreshSelectionTable() {
     if (selectionCourseFilter) params.course_id = selectionCourseFilter;
     const res = await api.collegeAdmin.listSelections(params);
     const tbody = document.getElementById('selectionTableBody');
-    if (!res.success) { tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">加载失败</td></tr>'; return; }
+    if (!res.success) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">加载失败</td></tr>'; return; }
     const items = res.data.items;
     if (items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">暂无数据</td></tr>';
     } else {
         const statusMap = { pending: '待抽签', confirmed: '已中签', cancelled: '已取消' };
+        const statusColors = { pending: 'warning', confirmed: 'success', cancelled: 'danger' };
         tbody.innerHTML = items.map(s => `
             <tr>
                 <td>${s.id}</td><td>${s.student_name}(${s.student_username})</td>
                 <td>${s.course_name}</td>
-                <td><span class="badge bg-${s.status === 'confirmed' ? 'success' : s.status === 'cancelled' ? 'danger' : 'warning'}">${statusMap[s.status] || s.status}</span></td>
+                <td><span class="badge bg-${statusColors[s.status] || 'secondary'}">${statusMap[s.status] || s.status}</span></td>
                 <td>${s.selected_at || '-'}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary me-1" onclick="showEditSelForm(${s.id})">编辑</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteSel(${s.id})">删除</button>
+                </td>
             </tr>
         `).join('');
     }
     renderPagination('selectionPagination', selectionPage, res.data.total, selectionPageSize, (p) => { selectionPage = p; refreshSelectionTable(); });
+}
+
+async function showEditSelForm(id) {
+    document.getElementById('formModalTitle').textContent = '编辑选课状态';
+    document.getElementById('formModalBody').innerHTML = `
+        <div class="mb-3"><label class="form-label">状态</label>
+            <select class="form-select" id="f_status">
+                <option value="pending">待抽签</option>
+                <option value="confirmed">中签</option>
+                <option value="cancelled">已取消</option>
+            </select>
+        </div>
+    `;
+    const modal = new bootstrap.Modal(document.getElementById('formModal'));
+    document.getElementById('btnFormSave').onclick = async function() {
+        const res = await api.collegeAdmin.updateSelection(id, { status: document.getElementById('f_status').value });
+        if (res.success) { modal.hide(); refreshSelectionTable(); }
+        showAlert(res.message);
+    };
+    modal.show();
+}
+
+function confirmDeleteSel(id) {
+    document.getElementById('confirmMessage').textContent = '确定要删除该选课记录吗？';
+    const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    document.getElementById('btnConfirmDelete').onclick = async function() {
+        const res = await api.collegeAdmin.deleteSelection(id);
+        modal.hide();
+        showAlert(res.message);
+        if (res.success) refreshSelectionTable();
+    };
+    modal.show();
 }
 
 
